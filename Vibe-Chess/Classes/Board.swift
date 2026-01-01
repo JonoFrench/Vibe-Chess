@@ -1,0 +1,215 @@
+//
+//  Board.swift
+//  Vibe-Chess
+//
+//  Created by Jonathan French on 30.12.25.
+//
+
+import Foundation
+
+let knightOffsets = [
+    (1, 2), (2, 1), (2, -1), (1, -2),
+    (-1, -2), (-2, -1), (-2, 1), (-1, 2)
+]
+
+let rookDirections = [
+    (1, 0), (-1, 0), (0, 1), (0, -1)
+]
+
+let bishopDirections = [
+    (1, 1), (1, -1), (-1, 1), (-1, -1)
+]
+
+
+struct Board: Codable, Equatable {
+    private(set) var squares: [Piece?] = Array(repeating: nil, count: 64)
+
+    subscript(_ square: Square) -> Piece? {
+        get {
+            squares[square.rank * 8 + square.file]
+        }
+        set {
+            squares[square.rank * 8 + square.file] = newValue
+        }
+    }
+}
+
+extension Board {
+    static func standard() -> Board {
+        var board = Board()
+
+        let backRank: [PieceType] =
+            [.rook, .knight, .bishop, .queen, .king, .bishop, .knight, .rook]
+
+        for file in 0..<8 {
+            board[Square(file: file, rank: 1)] = Piece(type: .pawn, color: .white)
+            board[Square(file: file, rank: 6)] = Piece(type: .pawn, color: .black)
+
+            board[Square(file: file, rank: 0)] =
+                Piece(type: backRank[file], color: .white)
+            board[Square(file: file, rank: 7)] =
+                Piece(type: backRank[file], color: .black)
+        }
+
+        return board
+    }
+}
+
+extension Board {
+    func pseudoLegalMoves(
+        from square: Square,
+        piece: Piece
+    ) -> [Move] {
+
+        switch piece.type {
+        case .pawn:
+            return pawnMoves(from: square, piece: piece)
+        case .knight:
+            return knightMoves(from: square, piece: piece)
+        case .bishop:
+            return slidingMoves(from: square, piece: piece, directions: bishopDirections)
+        case .rook:
+            return slidingMoves(from: square, piece: piece, directions: rookDirections)
+        case .queen:
+            return slidingMoves(
+                from: square,
+                piece: piece,
+                directions: bishopDirections + rookDirections
+            )
+        case .king:
+            return kingMoves(from: square, piece: piece)
+        }
+    }
+}
+
+extension Board {
+    func pawnMoves(from square: Square, piece: Piece) -> [Move] {
+        var moves: [Move] = []
+
+        let direction = piece.color == .white ? 1 : -1
+        let startRank = piece.color == .white ? 1 : 6
+
+        let oneForward = square + (0, direction)
+        if oneForward.isValid && self[oneForward] == nil {
+            moves.append(Move(from: square, to: oneForward))
+
+            let twoForward = square + (0, 2 * direction)
+            if square.rank == startRank && self[twoForward] == nil {
+                moves.append(Move(from: square, to: twoForward))
+            }
+        }
+
+        for fileOffset in [-1, 1] {
+            let capture = square + (fileOffset, direction)
+            if capture.isValid,
+               let target = self[capture],
+               target.color != piece.color {
+                moves.append(Move(from: square, to: capture))
+            }
+        }
+
+        return moves
+    }
+}
+
+extension Board {
+    func knightMoves(from square: Square, piece: Piece) -> [Move] {
+        knightOffsets.compactMap { offset in
+            let target = square + offset
+            guard target.isValid else { return nil }
+
+            if let other = self[target], other.color == piece.color {
+                return nil
+            }
+            return Move(from: square, to: target)
+        }
+    }
+}
+
+extension Board {
+    func slidingMoves(
+        from square: Square,
+        piece: Piece,
+        directions: [(Int, Int)]
+    ) -> [Move] {
+
+        var moves: [Move] = []
+
+        for dir in directions {
+            var current = square + dir
+            while current.isValid {
+                if let blocker = self[current] {
+                    if blocker.color != piece.color {
+                        moves.append(Move(from: square, to: current))
+                    }
+                    break
+                }
+                moves.append(Move(from: square, to: current))
+                current = current + dir
+            }
+        }
+
+        return moves
+    }
+}
+
+extension Board {
+    func kingMoves(from square: Square, piece: Piece) -> [Move] {
+        var moves: [Move] = []
+
+        for dx in -1...1 {
+            for dy in -1...1 where !(dx == 0 && dy == 0) {
+                let target = square + (dx, dy)
+                guard target.isValid else { continue }
+
+                if let other = self[target], other.color == piece.color {
+                    continue
+                }
+                moves.append(Move(from: square, to: target))
+            }
+        }
+        return moves
+    }
+}
+
+extension Board {
+    func isKingInCheck(color: PieceColor) -> Bool {
+        guard let kingSquare = squares.indices
+            .compactMap({ index -> Square? in
+                let piece = squares[index]
+                if piece?.type == .king && piece?.color == color {
+                    return Square(file: index % 8, rank: index / 8)
+                }
+                return nil
+            })
+            .first else { return false }
+
+        for index in squares.indices {
+            guard let piece = squares[index],
+                  piece.color != color else { continue }
+
+            let from = Square(file: index % 8, rank: index / 8)
+            let moves = pseudoLegalMoves(from: from, piece: piece)
+
+            if moves.contains(where: { $0.to == kingSquare }) {
+                return true
+            }
+        }
+        return false
+    }
+}
+
+extension Board {
+    func legalMoves(
+        from square: Square,
+        piece: Piece
+    ) -> [Move] {
+
+        pseudoLegalMoves(from: square, piece: piece).filter { move in
+            var copy = self
+            copy[move.from] = nil
+            copy[move.to] = piece
+            return !copy.isKingInCheck(color: piece.color)
+        }
+    }
+}

@@ -9,9 +9,10 @@ import SwiftUI
 
 @main
 struct Vibe_ChessApp: App {
+    @StateObject private var manager = GameManager()
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView().environmentObject(manager)
         }
     }
 }
