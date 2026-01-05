@@ -21,9 +21,16 @@ enum PieceType: Int, Codable {
     case king, queen, rook, bishop, knight, pawn
 }
 
-struct Piece: Codable, Equatable {
+struct Piece: Codable, Equatable, Identifiable {
+    let id: UUID
     let type: PieceType
     let color: PieceColor
+    
+    init(type: PieceType, color: PieceColor, id: UUID = UUID()) {
+        self.id = id
+        self.type = type
+        self.color = color
+    }
 }
 
 extension Piece {

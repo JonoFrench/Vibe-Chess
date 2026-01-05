@@ -7,16 +7,16 @@
 
 import SwiftUI
 
-    struct BoardView: View {
+struct BoardView: View {
     @EnvironmentObject var manager: GameManager
-    
+
     var body: some View {
         VStack(spacing: 0) {
             ForEach((0..<8).reversed(), id: \.self) { rank in
                 HStack(spacing: 0) {
                     ForEach(0..<8, id: \.self) { file in
                         let square = Square(file: file, rank: rank)
-                        let piece = manager.board[square]
+  //                      let piece = manager.board[square]
                         
                         ZStack {
                             Rectangle()
@@ -28,6 +28,11 @@ import SwiftUI
                                     .stroke(Color(.selected), lineWidth: 2)
                             }
                             
+                            if square == manager.lastMove?.from ||
+                               square == manager.lastMove?.to {
+                                Color.yellow.opacity(0.3)
+                            }
+
                             if let selected = manager.selectedSquare {
                                 let legalTargets = manager
                                     .legalMoves(from: selected)
@@ -45,10 +50,6 @@ import SwiftUI
                                     }
                                 }
                             }
-//                            SquareView(
-//                                piece: piece,
-//                                size: manager.squareDimension
-//                            )
                         }.frame(width: manager.squareDimension, height: manager.squareDimension)
                             .onTapGesture {
                                 manager.select(square)
@@ -57,7 +58,17 @@ import SwiftUI
                 }
             }
         }
+        .overlay {
+            if let result = manager.gameResult {
+                EndGameView(result: result) {
+                    manager.resetGame()
+                }
+            }
+        }
     }
+    
+    
+    
 }
 
 #Preview {

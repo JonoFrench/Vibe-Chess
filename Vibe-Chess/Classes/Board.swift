@@ -213,3 +213,113 @@ extension Board {
         }
     }
 }
+
+extension Board {
+    func legalMoves(for color: PieceColor) -> [Move] {
+        var result: [Move] = []
+
+        for index in squares.indices {
+            guard let piece = squares[index],
+                  piece.color == color else { continue }
+
+            let square = Square(file: index % 8, rank: index / 8)
+            result.append(contentsOf: legalMoves(from: square, piece: piece))
+        }
+
+        return result
+    }
+}
+
+extension Board {
+    func applying(_ move: Move) -> Board {
+        var copy = self
+        if let piece = copy[move.from] {
+            copy[move.from] = nil
+            copy[move.to] = piece
+        }
+        return copy
+    }
+}
+
+extension Board {
+    func hasAnyLegalMoves(for color: PieceColor) -> Bool {
+        for index in squares.indices {
+            guard let piece = squares[index],
+                  piece.color == color else { continue }
+
+            let square = Square(file: index % 8, rank: index / 8)
+            if !legalMoves(from: square, piece: piece).isEmpty {
+                return true
+            }
+        }
+        return false
+    }
+}
+
+extension Board {
+    func isCheckmate(for color: PieceColor) -> Bool {
+        isKingInCheck(color: color) && !hasAnyLegalMoves(for: color)
+    }
+
+    func isStalemate(for color: PieceColor) -> Bool {
+        !isKingInCheck(color: color) && !hasAnyLegalMoves(for: color)
+    }
+}
+
+func findCheckmateInOne(
+    board: Board,
+    color: PieceColor
+) -> Move? {
+
+    let moves = board.legalMoves(for: color)
+
+    for move in moves {
+        let newBoard = board.applying(move)
+        if newBoard.isCheckmate(for: color.opponent) {
+            return move
+        }
+    }
+    return nil
+}
+
+extension Board {
+    static func checkmateInOneTestPosition() -> Board {
+        var board = Board()
+
+        board[Square(file: 7, rank: 5)] = Piece(type: .king, color: .white)   // g6
+        board[Square(file: 6, rank: 5)] = Piece(type: .queen, color: .white)  // g7
+        board[Square(file: 7, rank: 7)] = Piece(type: .king, color: .black)   // h8
+
+        return board
+    }
+}
+
+extension Board {
+    static func stalemateTestPosition() -> Board {
+        var board = Board()
+
+        board[Square(file: 2, rank: 5)] = Piece(type: .king, color: .white)   // c6
+        board[Square(file: 2, rank: 6)] = Piece(type: .queen, color: .white)  // c7
+        board[Square(file: 0, rank: 7)] = Piece(type: .king, color: .black)   // a8
+
+        return board
+    }
+}
+
+extension Board {
+    static func unsafeMoveTestPosition() -> Board {
+        var board = Board()
+
+        // White
+        board[Square(file: 7, rank: 5)] = Piece(type: .king, color: .white)   // h6
+        board[Square(file: 6, rank: 0)] = Piece(type: .queen, color: .white)  // g1
+        board[Square(file: 6, rank: 1)] = Piece(type: .pawn, color: .white)   // g2
+
+        // Black
+        board[Square(file: 7, rank: 7)] = Piece(type: .king, color: .black)   // h8
+        board[Square(file: 6, rank: 7)] = Piece(type: .queen, color: .black)  // g8
+
+        return board
+    }
+}
+

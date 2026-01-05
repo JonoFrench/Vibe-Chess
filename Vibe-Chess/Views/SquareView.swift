@@ -9,19 +9,33 @@ import Foundation
 import SwiftUI
 
 struct SquareView: View {
+    @EnvironmentObject var manager: GameManager
+    
     let piece: Piece?
     let size: CGFloat
-
+    let square: Square?
+    let namespace: Namespace.ID
     var body: some View {
         ZStack {
-            if let piece {
+            if let piece, let square {
                 Image(piece.imageName)
                     .resizable()
                     .scaledToFit()
                     .padding(size * 0.1)
+                    .matchedGeometryEffect(
+                        id: piece.id,
+                        in: namespace,
+                        properties: .position
+                    )
+                if manager.lastCapturedSquare == square {
+                    Image(piece.imageName)
+                        .resizable()
+                        .scaleEffect(1.2)
+                        .opacity(0)
+                        .animation(.easeOut(duration: 0.2), value: manager.lastCapturedSquare)
+                }
             }
-        }
-        .frame(width: size, height: size)
+        }.frame(width: size, height: size)
     }
 }
 

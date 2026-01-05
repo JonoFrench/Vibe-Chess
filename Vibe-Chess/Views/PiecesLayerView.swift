@@ -9,6 +9,7 @@ import SwiftUI
 
 struct PiecesLayer: View {
     @EnvironmentObject var manager: GameManager
+    @Namespace private var pieceNamespace
 
     var body: some View {
         let boardSize = manager.squareDimension * 8
@@ -23,17 +24,21 @@ struct PiecesLayer: View {
                 if let piece = manager.board[square] {
                     SquareView(
                         piece: piece,
-                        size: manager.squareDimension
+                        size: manager.squareDimension,
+                        square: square,
+                        namespace: pieceNamespace
                     )
+//                    .matchedGeometryEffect(
+//                        id: "\(piece.color)-\(piece.type)-\(square.file)-\(square.rank)",
+//                        in: pieceNamespace,
+//                        properties: .position
+//                    )
+//                    .animation(.easeInOut(duration: 1.25), value: manager.board)
                     .position(
                         square.center(
                             squareSize: manager.squareDimension,
                             boardSize: boardSize
                         )
-                    )
-                    .animation(
-                        .easeInOut(duration: 0.25),
-                        value: manager.board
                     )
                 }
             }
