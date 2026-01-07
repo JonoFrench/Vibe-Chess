@@ -22,11 +22,13 @@ struct SquareView: View {
                     .resizable()
                     .scaledToFit()
                     .padding(size * 0.1)
+                    .id(piece.version)
                     .matchedGeometryEffect(
                         id: piece.id,
                         in: namespace,
                         properties: .position
                     )
+                
                 if manager.lastCapturedSquare == square {
                     Image(piece.imageName)
                         .resizable()
@@ -34,6 +36,7 @@ struct SquareView: View {
                         .opacity(0)
                         .animation(.easeOut(duration: 0.2), value: manager.lastCapturedSquare)
                 }
+                
             }
         }.frame(width: size, height: size)
     }

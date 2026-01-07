@@ -8,10 +8,19 @@
 import SwiftUI
 
 struct ChessView: View {
+    @EnvironmentObject var manager: GameManager
+
     var body: some View {
-        ZStack(alignment: .center) {
-            BoardView()
-            PiecesLayer()
+        VStack {
+            ZStack(alignment: .center) {
+                BoardView()
+                PiecesLayer()
+            }
+            .onChange(of: manager.pendingPromotion) {
+                guard let promotion = manager.pendingPromotion else { return }
+                manager.promotePawn(at: promotion.square, to: .queen)
+            }
+            ControlsView()
         }
     }
 }

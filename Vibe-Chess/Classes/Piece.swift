@@ -25,11 +25,13 @@ struct Piece: Codable, Equatable, Identifiable {
     let id: UUID
     let type: PieceType
     let color: PieceColor
+    var version: Int
     
     init(type: PieceType, color: PieceColor, id: UUID = UUID()) {
         self.id = id
         self.type = type
         self.color = color
+        self.version = 0
     }
 }
 

@@ -154,7 +154,7 @@ extension Board {
 }
 
 extension Board {
-    func kingMoves(from square: Square, piece: Piece) -> [Move] {
+    func standardKingMoves(from square: Square, piece: Piece) -> [Move] {
         var moves: [Move] = []
 
         for dx in -1...1 {
@@ -170,6 +170,26 @@ extension Board {
         }
         return moves
     }
+    
+    func kingMoves(from square: Square, piece: Piece) -> [Move] {
+        var moves: [Move] = []
+
+        for dx in -1...1 {
+            for dy in -1...1 where !(dx == 0 && dy == 0) {
+                let target = square + (dx, dy)
+                guard target.isValid else { continue }
+
+                if let other = self[target], other.color == piece.color {
+                    continue
+                }
+
+                moves.append(Move(from: square, to: target))
+            }
+        }
+
+        return moves
+    }
+
 }
 
 extension Board {
@@ -318,6 +338,107 @@ extension Board {
         // Black
         board[Square(file: 7, rank: 7)] = Piece(type: .king, color: .black)   // h8
         board[Square(file: 6, rank: 7)] = Piece(type: .queen, color: .black)  // g8
+
+        return board
+    }
+    
+    func wouldSquareBeAttacked(
+        _ square: Square,
+        by attacker: PieceColor
+    ) -> Bool {
+
+        for index in squares.indices {
+            guard let piece = squares[index],
+                  piece.color == attacker else { continue }
+
+            let from = Square(file: index % 8, rank: index / 8)
+
+            if piece.type == .pawn {
+                let dir = piece.color == .white ? 1 : -1
+                let attacks = [
+                    from + (-1, dir),
+                    from + (1, dir)
+                ]
+                if attacks.contains(square) {
+                    return true
+                }
+                continue
+            }
+
+            let moves = pseudoLegalMoves(from: from, piece: piece)
+
+            if moves.contains(where: { $0.to == square }) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+}
+
+extension Board {
+
+    static func promotionTestPosition() -> Board {
+        var board = Board()
+
+        // Clear everything first
+        board.squares = Array(repeating: nil, count: 64)
+
+        // Pawns ready to promote
+        board[Square(file: 4, rank: 6)] = Piece(type: .pawn, color: .white) // e7
+        board[Square(file: 4, rank: 1)] = Piece(type: .pawn, color: .black) // e7
+
+        // Kings must exist but NOT block promotion
+        board[Square(file: 0, rank: 0)] = Piece(type: .king, color: .white)
+        board[Square(file: 7, rank: 7)] = Piece(type: .king, color: .black)
+
+        return board
+    }
+}
+
+extension Board {
+    static func whiteKingSideCastleTestPosition() -> Board {
+        var board = Board()
+        board.squares = Array(repeating: nil, count: 64)
+
+        // Kings
+        board[Square(file: 4, rank: 0)] = Piece(type: .king, color: .white)
+        board[Square(file: 4, rank: 7)] = Piece(type: .king, color: .black)
+
+        // Rook for castling
+        board[Square(file: 7, rank: 0)] = Piece(type: .rook, color: .white)
+
+        return board
+    }
+}
+
+extension Board {
+    static func whiteQueenSideCastleTestPosition() -> Board {
+        var board = Board()
+        board.squares = Array(repeating: nil, count: 64)
+
+        board[Square(file: 4, rank: 0)] = Piece(type: .king, color: .white)
+        board[Square(file: 4, rank: 7)] = Piece(type: .king, color: .black)
+
+        board[Square(file: 0, rank: 0)] = Piece(type: .rook, color: .white)
+
+        return board
+    }
+}
+
+extension Board {
+    static func castlingThroughCheckTestPosition() -> Board {
+        var board = Board()
+        board.squares = Array(repeating: nil, count: 64)
+
+        board[Square(file: 4, rank: 0)] = Piece(type: .king, color: .white)
+        board[Square(file: 7, rank: 0)] = Piece(type: .rook, color: .white)
+
+        board[Square(file: 4, rank: 7)] = Piece(type: .king, color: .black)
+
+        // Black rook attacking f1
+        board[Square(file: 5, rank: 7)] = Piece(type: .rook, color: .black)
 
         return board
     }

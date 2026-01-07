@@ -66,9 +66,6 @@ struct BoardView: View {
             }
         }
     }
-    
-    
-    
 }
 
 #Preview {

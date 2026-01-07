@@ -28,6 +28,7 @@ struct PiecesLayer: View {
                         square: square,
                         namespace: pieceNamespace
                     )
+                    
 //                    .matchedGeometryEffect(
 //                        id: "\(piece.color)-\(piece.type)-\(square.file)-\(square.rank)",
 //                        in: pieceNamespace,

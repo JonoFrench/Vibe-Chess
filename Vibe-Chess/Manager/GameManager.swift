@@ -15,6 +15,19 @@ enum GameResult: Equatable {
     case stalemate
 }
 
+struct CastlingRights: Codable {
+    var whiteKingSide = true
+    var whiteQueenSide = true
+    var blackKingSide = true
+    var blackQueenSide = true
+}
+
+struct PromotionRequest: Identifiable, Equatable {
+    let id = UUID()
+    let square: Square
+    let color: PieceColor
+}
+
 @MainActor
 final class GameManager: ObservableObject {
     
@@ -24,6 +37,9 @@ final class GameManager: ObservableObject {
     @Published private(set) var gameResult: GameResult? = nil
     @Published var lastCapturedSquare: Square? = nil
     @Published var lastMove: Move? = nil
+    @Published private(set) var castlingRights = CastlingRights()
+    @Published var pendingPromotion: PromotionRequest? = nil
+    @Published private(set) var moveHistory: [MoveRecord] = []
 
     private let ai = SimpleChessAI()
     var playAgainstAI = true
@@ -38,15 +54,26 @@ final class GameManager: ObservableObject {
         //loadStalemateTestPosition()
         //loadCheckmateTestPosition()
 //        loadUnsafeMoveTestPosition()
+//        loadPromotionTestPosition()
+//        loadCastlingTest()
 #endif
         
     }
+ 
+    func setBoard(_ newBoard: Board) {
+        board = newBoard
+    }
     
+    func setCastlingRights(_ newCastlingRights: CastlingRights) {
+        castlingRights = newCastlingRights
+    }
+
     func select(_ square: Square) {
         guard let piece = board[square] else {
             // Tap on empty square
             if let from = selectedSquare {
                 attemptMove(from: from, to: square)
+                
             }
             selectedSquare = nil
             return
@@ -63,62 +90,259 @@ final class GameManager: ObservableObject {
         }
     }
     
-    func makeMove(_ move: Move) {
+    func executeMove(_ move: Move) {
         guard let piece = board[move.from] else { return }
-        if board[move.to] != nil {
-            lastCapturedSquare = move.to
+
+        let capturedPiece = board[move.to]
+
+        let record = MoveRecord(
+            move: move,
+            movedPiece: piece,
+            capturedPiece: capturedPiece,
+            previousCastlingRights: castlingRights,
+            previousSideToMove: sideToMove,
+            previousGameResult: gameResult,
+            rookMove: rookCastlingMoveIfNeeded(move, piece),
+            promotion: move.promotion
+        )
+
+        applyMove(record)
+        moveHistory.append(record)
+    }
+
+    func submitMove(_ move: Move) {
+//        makeMove(move)
+        executeMove(move)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            self.handleAIMoveIfNeeded()
         }
+    }
+    
+    private func applyMove(_ record: MoveRecord) {
+        let move = record.move
+        let piece = record.movedPiece
+
         withAnimation(.easeInOut(duration: 0.25)) {
+
+            updateCastlingRights(piece: piece, from: move.from)
+
             board[move.from] = nil
-            board[move.to] = piece
-            lastMove = move
+
+            if let promotion = record.promotion {
+                board[move.to] = Piece(type: promotion, color: piece.color)
+            } else {
+                board[move.to] = piece
+            }
+
+            if let rookMove = record.rookMove {
+                let rook = board[rookMove.from]
+                board[rookMove.from] = nil
+                board[rookMove.to] = rook
+            }
+
             sideToMove = sideToMove.opponent
+            lastMove = move
         }
 
         checkForGameEnd()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            self.lastCapturedSquare = nil
-        }
     }
+
     
+    private func handleAIMoveIfNeeded() {
+        guard playAgainstAI else { return }
+        guard sideToMove == .black else { return }
+
+        makeAIMove()
+    }
+
+    
+//    func makeMove(_ move: Move) {
+//        guard let piece = board[move.from] else { return }
+//        let movingPiece = piece
+//        if board[move.to] != nil {
+//            lastCapturedSquare = move.to
+//        }
+//        
+//       withAnimation(.easeInOut(duration: 0.25)) {
+//            
+//            updateCastlingRights(piece: piece, from: move.from)
+//            
+//            // Castling rook move
+//            if piece.type == .king, abs(move.from.file - move.to.file) == 2 {
+//                moveRookForCastling(kingMove: move)
+//            }
+//            
+//            board[move.from] = nil
+//            board[move.to] = movingPiece
+//            lastMove = move
+//            sideToMove = sideToMove.opponent
+//        }
+//        
+//        // 👇 AFTER animation
+//        if piece.type == .pawn && (move.to.rank == 7 || move.to.rank == 0) {
+//            DispatchQueue.main.asyncAfter(deadline: .now() + 0.26) {
+//                print("🔥 Setting pendingPromotion at \(move.to)")
+//                self.pendingPromotion = PromotionRequest(
+//                    square: move.to,
+//                    color: piece.color
+//                )
+//            }
+//        }
+//        
+//        checkForGameEnd()
+//        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+//            self.lastCapturedSquare = nil
+//        }
+//    }
     
     func attemptMove(from: Square, to: Square) {
         let moves = legalMoves(from: from)
-        guard moves.contains(where: { $0.to == to }) else { return }
-        
-        let piece = board[from]!
-        withAnimation(.easeInOut(duration: 0.25)) {
-            board[from] = nil
-            board[to] = piece
-            sideToMove = sideToMove.opponent
-        }
-        checkForGameEnd()
-        // AI response
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            if self.playAgainstAI && self.sideToMove == .black {
-                self.makeAIMove()
-            }
-        }
+        guard let move = moves.first(where: { $0.to == to }) else { return }
+
+        submitMove(move)
     }
-    
+
     func legalMoves(from square: Square) -> [Move] {
         guard let piece = board[square],
               piece.color == sideToMove else { return [] }
+
+        var moves = board.legalMoves(from: square, piece: piece)
+
+        // Only for pawns
+        if piece.type == .pawn {
+            var promotionMoves: [Move] = []
+
+            for move in moves {
+                let targetRank = move.to.rank
+                if targetRank == 7 || targetRank == 0 {
+                    let promotionPiece: PieceType = .queen
+                    // Pawn reached last rank → promotion
+                    // For Phase 1 we auto-promote to queen
+                    promotionMoves.append(Move(from: move.from, to: move.to, promotion: promotionPiece))
+                } else {
+                    promotionMoves.append(move)
+                }
+            }
+
+            moves = promotionMoves
+        }
         
-        return board.legalMoves(from: square, piece: piece)
+        // Inject castling moves ONLY for kings
+        if piece.type == .king {
+            moves.append(contentsOf: castlingMoves(from: square, piece: piece))
+        }
+
+        // 🔍 DEBUG SANITY CHECK (temporary)
+        if piece.type == .pawn {
+            print("Legal moves for pawn at \(square):")
+            for move in moves {
+                print(
+                    "→ \(move.from) → \(move.to), promotion: \(String(describing: move.promotion))"
+                )
+            }
+        }
+        return moves
     }
-    
+
+    private func rookCastlingMoveIfNeeded(
+        _ move: Move,
+        _ piece: Piece
+    ) -> (from: Square, to: Square)? {
+
+        guard piece.type == .king else { return nil }
+
+        let fileDelta = move.to.file - move.from.file
+        guard abs(fileDelta) == 2 else { return nil }
+
+        let rank = move.from.rank
+
+        if fileDelta == 2 {
+            // King-side castling
+            return (
+                from: Square(file: 7, rank: rank),
+                to: Square(file: 5, rank: rank)
+            )
+        } else {
+            // Queen-side castling
+            return (
+                from: Square(file: 0, rank: rank),
+                to: Square(file: 3, rank: rank)
+            )
+        }
+    }
+
+    private func castlingMoves(
+        from square: Square,
+        piece: Piece
+    ) -> [Move] {
+
+        guard piece.type == .king else { return [] }
+        guard !board.isKingInCheck(color: piece.color) else { return [] }
+
+        let rank = piece.color == .white ? 0 : 7
+        guard square == Square(file: 4, rank: rank) else { return [] }
+
+        var moves: [Move] = []
+
+        if piece.color == .white {
+            if castlingRights.whiteKingSide && canCastleKingSide(color: .white) {
+                moves.append(Move(from: square, to: Square(file: 6, rank: rank)))
+            }
+            if castlingRights.whiteQueenSide && canCastleQueenSide(color: .white) {
+                moves.append(Move(from: square, to: Square(file: 2, rank: rank)))
+            }
+        } else {
+            if castlingRights.blackKingSide && canCastleKingSide(color: .black) {
+                moves.append(Move(from: square, to: Square(file: 6, rank: rank)))
+            }
+            if castlingRights.blackQueenSide && canCastleQueenSide(color: .black) {
+                moves.append(Move(from: square, to: Square(file: 2, rank: rank)))
+            }
+        }
+
+        return moves
+    }
+
+    private func canCastleKingSide(color: PieceColor) -> Bool {
+        let rank = color == .white ? 0 : 7
+        let squares = [
+            Square(file: 5, rank: rank),
+            Square(file: 6, rank: rank)
+        ]
+
+        return squares.allSatisfy {
+            board[$0] == nil &&
+            !board.wouldSquareBeAttacked($0, by: color.opponent)
+        }
+    }
+
+    private func canCastleQueenSide(color: PieceColor) -> Bool {
+        let rank = color == .white ? 0 : 7
+        let squares = [
+            Square(file: 1, rank: rank),
+            Square(file: 2, rank: rank),
+            Square(file: 3, rank: rank)
+        ]
+
+        return squares.allSatisfy {
+            board[$0] == nil &&
+            !board.wouldSquareBeAttacked($0, by: color.opponent)
+        }
+    }
+
     func makeAIMove() {
+        guard playAgainstAI else { return }
+        guard sideToMove == .black else { return }
+        guard gameResult == nil else { return }
         guard let move = ai.selectMove(board: board, color: sideToMove) else {
             return
         }
-        
-        // Small delay = nicer UX
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            self.makeMove(move)
+            self.submitMove(move)
         }
     }
-    
+
     func checkForGameEnd() {
         print("---- GAME STATE CHECK ----")
         print("Side to move:", sideToMove)
@@ -133,18 +357,6 @@ final class GameManager: ObservableObject {
             gameResult = .stalemate
         }
     }
-
-    
-//    func checkForGameEnd() {
-//        if board.isCheckmate(for: sideToMove) {
-//            gameResult = .checkmate(winner: sideToMove.opponent)
-//        } else if board.isStalemate(for: sideToMove) {
-//            gameResult = .stalemate
-//        }
-//        print("Black in check:", board.isKingInCheck(color: .black))
-//        print("Black has moves:", board.hasAnyLegalMoves(for: .black))
-//
-//    }
     
     func resetGame() {
         board = .standard()
@@ -153,6 +365,50 @@ final class GameManager: ObservableObject {
         gameResult = nil
     }
     
+    func undoTurn() {
+        if playAgainstAI {
+            // Undo AI move first (if present)
+            if sideToMove == .white {
+                undoLastMove()
+            }
+
+            // Undo human move
+            undoLastMove()
+        } else {
+            undoLastMove()
+        }
+    }
+
+    func undoLastMove() {
+        guard let record = moveHistory.popLast() else { return }
+
+        let move = record.move
+
+        withAnimation(.easeInOut(duration: 0.25)) {
+
+            board[move.from] = record.movedPiece
+            board[move.to] = record.capturedPiece
+
+            if let rookMove = record.rookMove {
+                let rook = board[rookMove.to]
+                board[rookMove.to] = nil
+                board[rookMove.from] = rook
+            }
+
+            castlingRights = record.previousCastlingRights
+            sideToMove = record.previousSideToMove
+            gameResult = record.previousGameResult
+            lastMove = nil
+        }
+    }
+
+    func loadPromotionTestPosition() {
+        setBoard(.promotionTestPosition())
+        sideToMove = .white
+        selectedSquare = nil
+        gameResult = nil
+    }
+
     func loadCheckmateTestPosition() {
         board = .checkmateInOneTestPosition()
         sideToMove = .white
@@ -172,6 +428,97 @@ final class GameManager: ObservableObject {
         sideToMove = .black
         selectedSquare = nil
         gameResult = nil
+    }
+
+    func loadCastlingTest() {
+//        board = .whiteKingSideCastleTestPosition()
+//        board = .whiteQueenSideCastleTestPosition()
+        board = .castlingThroughCheckTestPosition()
+        castlingRights = CastlingRights() // all true
+        sideToMove = .white
+        selectedSquare = nil
+        gameResult = nil
+    }
+    
+    func updateRookCastlingRights(from square: Square, color: PieceColor) {
+        if color == .white {
+            if square == Square(file: 0, rank: 0) {
+                castlingRights.whiteQueenSide = false
+            }
+            if square == Square(file: 7, rank: 0) {
+                castlingRights.whiteKingSide = false
+            }
+        } else {
+            if square == Square(file: 0, rank: 7) {
+                castlingRights.blackQueenSide = false
+            }
+            if square == Square(file: 7, rank: 7) {
+                castlingRights.blackKingSide = false
+            }
+        }
+    }
+
+    private func updateCastlingRights(
+        piece: Piece,
+        from square: Square
+    ) {
+        if piece.type == .king {
+            if piece.color == .white {
+                castlingRights.whiteKingSide = false
+                castlingRights.whiteQueenSide = false
+            } else {
+                castlingRights.blackKingSide = false
+                castlingRights.blackQueenSide = false
+            }
+        }
+
+        if piece.type == .rook {
+            if piece.color == .white {
+                if square == Square(file: 0, rank: 0) {
+                    castlingRights.whiteQueenSide = false
+                }
+                if square == Square(file: 7, rank: 0) {
+                    castlingRights.whiteKingSide = false
+                }
+            } else {
+                if square == Square(file: 0, rank: 7) {
+                    castlingRights.blackQueenSide = false
+                }
+                if square == Square(file: 7, rank: 7) {
+                    castlingRights.blackKingSide = false
+                }
+            }
+        }
+    }
+
+    private func moveRookForCastling(kingMove: Move) {
+        let rank = kingMove.from.rank
+
+        if kingMove.to.file == 6 {
+            // King side
+            let rookFrom = Square(file: 7, rank: rank)
+            let rookTo = Square(file: 5, rank: rank)
+
+            if let rook = board[rookFrom] {
+                board[rookFrom] = nil
+                board[rookTo] = rook
+            }
+        } else if kingMove.to.file == 2 {
+            // Queen side
+            let rookFrom = Square(file: 0, rank: rank)
+            let rookTo = Square(file: 3, rank: rank)
+
+            if let rook = board[rookFrom] {
+                board[rookFrom] = nil
+                board[rookTo] = rook
+            }
+        }
+    }
+
+    func promotePawn(at square: Square, to type: PieceType) {
+        guard let pawn = board[square], pawn.type == .pawn else { return }
+        board[square] = Piece(type: type, color: pawn.color)
+        pendingPromotion = nil
     }
 
 }
