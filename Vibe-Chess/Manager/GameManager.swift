@@ -13,9 +13,11 @@ import Combine
 enum GameResult: Equatable {
     case checkmate(winner: PieceColor)
     case stalemate
+    case drawByFiftyMoveRule
+    case drawByThreefoldRepetition
 }
 
-struct CastlingRights: Codable {
+struct CastlingRights: Codable, Equatable, Hashable {
     var whiteKingSide = true
     var whiteQueenSide = true
     var blackKingSide = true
@@ -26,6 +28,12 @@ struct PromotionRequest: Identifiable, Equatable {
     let id = UUID()
     let square: Square
     let color: PieceColor
+}
+
+struct PositionKey: Hashable {
+    let boardHash: String
+    let sideToMove: PieceColor
+    let castlingRights: CastlingRights
 }
 
 @MainActor
@@ -40,11 +48,26 @@ final class GameManager: ObservableObject {
     @Published private(set) var castlingRights = CastlingRights()
     @Published var pendingPromotion: PromotionRequest? = nil
     @Published private(set) var moveHistory: [MoveRecord] = []
+    @Published var isThinking = false
+    @Published private(set) var halfMoveClock: Int = 0
+    @Published private(set) var enPassantTarget: Square? = nil
+    @Published var isDemoMode: Bool = false
+    @Published var highlightedSquares: Set<Square> = []
+    @Published var rotateBlackPieces: Bool = false
+    @Published var showCoordinates: Bool = true
+    @Published var showLastMove: Bool = true
 
+    private var positionCounts: [PositionKey: Int] = [:]
     private let ai = SimpleChessAI()
     var playAgainstAI = true
     var squareDimension = 0.0
-    
+    var previousHalfMoveClock = 0
+    var previousPositionCounts: [PositionKey: Int] = [:]
+    var previousEnPassantTarget: Square?
+    var canUndo: Bool {
+        !moveHistory.isEmpty
+    }
+
     init() {
         if UIDevice.current.userInterfaceIdiom == .pad {
         } else {
@@ -94,6 +117,21 @@ final class GameManager: ObservableObject {
         guard let piece = board[move.from] else { return }
 
         let capturedPiece = board[move.to]
+        let isCheck = board.isKingInCheck(color: sideToMove, enPassantTarget: nil)
+        let isCheckmate = board.isCheckmate(for: sideToMove)
+
+        let ambiguousPieces = board.findAmbiguousPieces(
+            for: piece,
+            movingTo: move.to
+        )
+
+        let disambiguationFile = ambiguousPieces.contains {
+            $0.from.file != move.from.file
+        }
+
+        let disambiguationRank = ambiguousPieces.contains {
+            $0.from.rank != move.from.rank
+        }
 
         let record = MoveRecord(
             move: move,
@@ -102,8 +140,15 @@ final class GameManager: ObservableObject {
             previousCastlingRights: castlingRights,
             previousSideToMove: sideToMove,
             previousGameResult: gameResult,
+            previousHalfMoveClock: halfMoveClock,
+            previousPositionCounts: positionCounts,
+            previousEnPassantTarget: enPassantTarget,
             rookMove: rookCastlingMoveIfNeeded(move, piece),
-            promotion: move.promotion
+            promotion: move.promotion,
+            isCheck: isCheck,
+            isCheckmate: isCheckmate,
+            disambiguationFile: disambiguationFile,
+            disambiguationRank: disambiguationRank
         )
 
         applyMove(record)
@@ -127,7 +172,14 @@ final class GameManager: ObservableObject {
             updateCastlingRights(piece: piece, from: move.from)
 
             board[move.from] = nil
-
+            if enPassantTarget != nil {
+                let ept = enPassantCaptureSquare(for: move, pawn: piece)
+                if let ept {
+                    print("enPassantTarget \(ept)")
+                    board[ept] = nil
+                }
+                self.enPassantTarget = nil // default reset
+            }
             if let promotion = record.promotion {
                 board[move.to] = Piece(type: promotion, color: piece.color)
             } else {
@@ -139,12 +191,50 @@ final class GameManager: ObservableObject {
                 board[rookMove.from] = nil
                 board[rookMove.to] = rook
             }
+            previousHalfMoveClock = halfMoveClock
+            previousPositionCounts = positionCounts
+            previousEnPassantTarget = enPassantTarget
+            let isPawnMove = piece.type == .pawn
+            let isCapture = board[move.to] != nil
+
+            if isPawnMove || isCapture {
+                halfMoveClock = 0
+            } else {
+                halfMoveClock += 1
+            }
+            
+            if piece.type == .pawn {
+                let startRank = piece.color == .white ? 1 : 6
+                let doublePushRank = piece.color == .white ? 3 : 4
+
+                if move.from.rank == startRank && move.to.rank == doublePushRank {
+                    enPassantTarget = Square(
+                        file: move.from.file,
+                        rank: (move.from.rank + move.to.rank) / 2
+                    )
+                }
+            }
 
             sideToMove = sideToMove.opponent
             lastMove = move
         }
 
         checkForGameEnd()
+    }
+
+    func enPassantCaptureSquare(for move: Move, pawn: Piece) -> Square? {
+        guard pawn.type == .pawn,
+              move.from.file != move.to.file,
+              board[move.to] == nil,
+              move.to == enPassantTarget else {
+            return nil
+        }
+
+        let direction = pawn.color == .white ? -1 : 1
+        return Square(
+            file: move.to.file,
+            rank: move.to.rank + direction
+        )
     }
 
     
@@ -206,7 +296,7 @@ final class GameManager: ObservableObject {
         guard let piece = board[square],
               piece.color == sideToMove else { return [] }
 
-        var moves = board.legalMoves(from: square, piece: piece)
+        var moves = board.legalMoves(from: square, piece: piece, enPassantTarget: enPassantTarget)
 
         // Only for pawns
         if piece.type == .pawn {
@@ -277,7 +367,7 @@ final class GameManager: ObservableObject {
     ) -> [Move] {
 
         guard piece.type == .king else { return [] }
-        guard !board.isKingInCheck(color: piece.color) else { return [] }
+        guard !board.isKingInCheck(color: piece.color, enPassantTarget: enPassantTarget) else { return [] }
 
         let rank = piece.color == .white ? 0 : 7
         guard square == Square(file: 4, rank: rank) else { return [] }
@@ -312,7 +402,7 @@ final class GameManager: ObservableObject {
 
         return squares.allSatisfy {
             board[$0] == nil &&
-            !board.wouldSquareBeAttacked($0, by: color.opponent)
+            !board.wouldSquareBeAttacked($0, by: color.opponent, enPassantTarget: enPassantTarget)
         }
     }
 
@@ -326,7 +416,7 @@ final class GameManager: ObservableObject {
 
         return squares.allSatisfy {
             board[$0] == nil &&
-            !board.wouldSquareBeAttacked($0, by: color.opponent)
+            !board.wouldSquareBeAttacked($0, by: color.opponent, enPassantTarget: enPassantTarget)
         }
     }
 
@@ -346,8 +436,8 @@ final class GameManager: ObservableObject {
     func checkForGameEnd() {
         print("---- GAME STATE CHECK ----")
         print("Side to move:", sideToMove)
-        print("In check:", board.isKingInCheck(color: sideToMove))
-        print("Has legal moves:", board.hasAnyLegalMoves(for: sideToMove))
+        print("In check:", board.isKingInCheck(color: sideToMove, enPassantTarget: nil))
+        print("Has legal moves:", board.hasAnyLegalMoves(for: sideToMove, enPassantTarget: enPassantTarget))
 
         if board.isCheckmate(for: sideToMove) {
             print("CHECKMATE detected")
@@ -356,6 +446,17 @@ final class GameManager: ObservableObject {
             print("STALEMATE detected")
             gameResult = .stalemate
         }
+        else if halfMoveClock >= 100 {
+            print("DRAW by 50 detected")
+            gameResult = .drawByFiftyMoveRule
+            return
+        }
+        else if positionCounts[currentPositionKey(), default: 0] >= 3 {
+            print("DRAW by Threefold Repetition")
+            gameResult = .drawByThreefoldRepetition
+            return
+        }
+
     }
     
     func resetGame() {
@@ -363,6 +464,24 @@ final class GameManager: ObservableObject {
         sideToMove = .white
         selectedSquare = nil
         gameResult = nil
+
+        castlingRights = CastlingRights()
+        enPassantTarget = nil
+        pendingPromotion = nil
+
+        lastMove = nil
+        lastCapturedSquare = nil
+
+        moveHistory.removeAll()
+        
+#if DEBUG
+        //loadStalemateTestPosition()
+        //loadCheckmateTestPosition()
+//        loadUnsafeMoveTestPosition()
+//        loadPromotionTestPosition()
+//        loadCastlingTest()
+#endif
+
     }
     
     func undoTurn() {
@@ -380,6 +499,7 @@ final class GameManager: ObservableObject {
     }
 
     func undoLastMove() {
+        guard !isThinking else { return }
         guard let record = moveHistory.popLast() else { return }
 
         let move = record.move
@@ -398,21 +518,33 @@ final class GameManager: ObservableObject {
             castlingRights = record.previousCastlingRights
             sideToMove = record.previousSideToMove
             gameResult = record.previousGameResult
+            halfMoveClock = record.previousHalfMoveClock
+            previousPositionCounts = record.previousPositionCounts
+            previousEnPassantTarget = record.previousEnPassantTarget
             lastMove = nil
+        }
+    }
+
+    func undo(toMoveIndex index: Int) {
+        guard !isThinking else { return }
+        guard index >= 0 else { return }
+
+        while moveHistory.count > index + 1 {
+            undoLastMove()
         }
     }
 
     func loadPromotionTestPosition() {
         setBoard(.promotionTestPosition())
         sideToMove = .white
-        selectedSquare = nil
+        selectedSquare = Square(file: 4, rank: 6)
         gameResult = nil
     }
 
     func loadCheckmateTestPosition() {
         board = .checkmateInOneTestPosition()
         sideToMove = .white
-        selectedSquare = nil
+        selectedSquare = Square(file: 6, rank: 5)
         gameResult = nil
     }
 
@@ -431,14 +563,25 @@ final class GameManager: ObservableObject {
     }
 
     func loadCastlingTest() {
-//        board = .whiteKingSideCastleTestPosition()
+        board = .whiteKingSideCastleTestPosition()
 //        board = .whiteQueenSideCastleTestPosition()
-        board = .castlingThroughCheckTestPosition()
+//        board = .castlingThroughCheckTestPosition()
         castlingRights = CastlingRights() // all true
         sideToMove = .white
-        selectedSquare = nil
+        selectedSquare = Square(file: 4, rank: 0)
         gameResult = nil
     }
+    
+    func loadEnPassantTestPosition() {
+        setBoard(.enPassantTestPosition())
+        sideToMove = .white
+        gameResult = nil
+
+        // Critical: mark en-passant target square (d6)
+        enPassantTarget = Square(file: 3, rank: 5)
+        selectedSquare = Square(file: 4, rank: 4)
+    }
+
     
     func updateRookCastlingRights(from square: Square, color: PieceColor) {
         if color == .white {
@@ -519,6 +662,14 @@ final class GameManager: ObservableObject {
         guard let pawn = board[square], pawn.type == .pawn else { return }
         board[square] = Piece(type: type, color: pawn.color)
         pendingPromotion = nil
+    }
+
+    func currentPositionKey() -> PositionKey {
+        PositionKey(
+            boardHash: board.positionHash(),
+            sideToMove: sideToMove,
+            castlingRights: castlingRights
+        )
     }
 
 }

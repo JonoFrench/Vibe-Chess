@@ -1,0 +1,51 @@
+//
+//  BoardCoordinatesView.swift
+//  Vibe-Chess
+//
+//  Created by Jonathan French on 9.01.26.
+//
+
+import SwiftUI
+
+struct BoardCoordinatesLayer: View {
+    @EnvironmentObject var manager: GameManager
+
+    let boardSize: CGFloat
+    let padding: CGFloat
+
+    private let files = ["a","b","c","d","e","f","g","h"]
+
+    var body: some View {
+        ZStack {
+            // Files (bottom)
+            ForEach(0..<8, id: \.self) { file in
+                Text(files[file])
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .position(
+                        x: padding + CGFloat(file) * squareSize + (squareSize / 2),
+                        y: padding + boardSize + 4
+                    )
+            }
+
+            // Ranks (left)
+            ForEach(0..<8, id: \.self) { rank in
+                Text("\(rank + 1)")
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .position(
+                        x: padding - 10,
+                        y: padding + boardSize - (CGFloat(rank) * squareSize + squareSize / 2) - 4
+                    )
+            }
+        }
+        .allowsHitTesting(false)
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.2), value: manager.showCoordinates)
+    }
+
+    private var squareSize: CGFloat {
+        boardSize / 8
+    }
+}
+

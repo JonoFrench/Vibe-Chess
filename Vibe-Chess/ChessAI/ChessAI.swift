@@ -20,12 +20,10 @@ final class SimpleChessAI {
     
     func evaluate(board: Board, for color: PieceColor) -> Int {
         var score = 0
-
         for piece in board.squares.compactMap({ $0 }) {
             let value = pieceValue[piece.type]!
             score += (piece.color == color) ? value : -value
         }
-
         return score
     }
 
@@ -44,7 +42,7 @@ final class SimpleChessAI {
         }
 
         // Penalize hanging pieces
-        if newBoard.isKingInCheck(color: color) {
+        if newBoard.isKingInCheck(color: color, enPassantTarget: nil) {
             score -= 500
         }
 
@@ -56,7 +54,7 @@ final class SimpleChessAI {
         color: PieceColor
     ) -> Move? {
 
-        let moves = board.legalMoves(for: color)
+        let moves = board.legalMoves(for: color, enPassantTarget: nil)
         guard !moves.isEmpty else { return nil }
 
         // 🔥 Priority 1: Deliver checkmate
@@ -90,7 +88,6 @@ final class SimpleChessAI {
         return sorted.prefix(3).randomElement()?.0
     }
 
-
     func allowsOpponentMateInOne(
         after move: Move,
         board: Board,
@@ -100,7 +97,7 @@ final class SimpleChessAI {
         let newBoard = board.applying(move)
         let opponent = color.opponent
 
-        let opponentMoves = newBoard.legalMoves(for: opponent)
+        let opponentMoves = newBoard.legalMoves(for: opponent, enPassantTarget: nil)
 
         for reply in opponentMoves {
             let replyBoard = newBoard.applying(reply)

@@ -12,12 +12,30 @@ struct ControlsView: View {
 
     var body: some View {
         HStack {
-            Button("Undo") {
+            // Undo
+            Button {
                 manager.undoTurn()
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.title2).foregroundColor(.white)
             }
+            .disabled(!manager.canUndo)
+            
+
+            Spacer()
+
+            // Placeholder for future controls
+            // e.g. Redo, Analysis, Clock
         }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal)
     }
 }
+
 
 
 #Preview {

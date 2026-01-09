@@ -28,13 +28,6 @@ struct PiecesLayer: View {
                         square: square,
                         namespace: pieceNamespace
                     )
-                    
-//                    .matchedGeometryEffect(
-//                        id: "\(piece.color)-\(piece.type)-\(square.file)-\(square.rank)",
-//                        in: pieceNamespace,
-//                        properties: .position
-//                    )
-//                    .animation(.easeInOut(duration: 1.25), value: manager.board)
                     .position(
                         square.center(
                             squareSize: manager.squareDimension,
@@ -43,7 +36,17 @@ struct PiecesLayer: View {
                     )
                 }
             }
+        }.onChange(of: manager.pendingPromotion) {
+            guard let promotion = manager.pendingPromotion else { return }
+            manager.promotePawn(at: promotion.square, to: .queen)
         }
         .frame(width: boardSize, height: boardSize)
+        .overlay {
+            if let result = manager.gameResult {
+                EndGameView(result: result) {
+                    manager.resetGame()
+                }
+            }
+        }
     }
 }

@@ -11,7 +11,7 @@ import SwiftUI
 enum PieceColor: Int, Codable {
     case white
     case black
-
+    
     var opponent: PieceColor {
         self == .white ? .black : .white
     }
@@ -19,6 +19,17 @@ enum PieceColor: Int, Codable {
 
 enum PieceType: Int, Codable {
     case king, queen, rook, bishop, knight, pawn
+    
+    var algebraic: String {
+        switch self {
+        case .king: return "K"
+        case .queen: return "Q"
+        case .rook: return "R"
+        case .bishop: return "B"
+        case .knight: return "N"
+        default: return ""
+        }
+    }
 }
 
 struct Piece: Codable, Equatable, Identifiable {
@@ -39,4 +50,8 @@ extension Piece {
     var imageName: String {
         "\(color)_\(type)"
     }
+}
+
+struct AmbiguousPiece {
+    let from: Square
 }

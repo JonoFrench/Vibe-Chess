@@ -58,12 +58,13 @@ extension Board {
 extension Board {
     func pseudoLegalMoves(
         from square: Square,
-        piece: Piece
+        piece: Piece,
+        enPassantTarget: Square?
     ) -> [Move] {
 
         switch piece.type {
         case .pawn:
-            return pawnMoves(from: square, piece: piece)
+            return pawnMoves(from: square, piece: piece, enPassantTarget: enPassantTarget )
         case .knight:
             return knightMoves(from: square, piece: piece)
         case .bishop:
@@ -83,7 +84,7 @@ extension Board {
 }
 
 extension Board {
-    func pawnMoves(from square: Square, piece: Piece) -> [Move] {
+    func pawnMoves(from square: Square, piece: Piece, enPassantTarget: Square?) -> [Move] {
         var moves: [Move] = []
 
         let direction = piece.color == .white ? 1 : -1
@@ -108,6 +109,19 @@ extension Board {
             }
         }
 
+        // En passant
+        if let epSquare = enPassantTarget {
+            let direction = piece.color == .white ? 1 : -1
+
+            if epSquare.rank == square.rank + direction &&
+               abs(epSquare.file - square.file) == 1 {
+
+                moves.append(
+                    Move(from: square, to: epSquare)
+                )
+            }
+        }
+        
         return moves
     }
 }
@@ -193,7 +207,7 @@ extension Board {
 }
 
 extension Board {
-    func isKingInCheck(color: PieceColor) -> Bool {
+    func isKingInCheck(color: PieceColor,enPassantTarget: Square?) -> Bool {
         guard let kingSquare = squares.indices
             .compactMap({ index -> Square? in
                 let piece = squares[index]
@@ -209,7 +223,7 @@ extension Board {
                   piece.color != color else { continue }
 
             let from = Square(file: index % 8, rank: index / 8)
-            let moves = pseudoLegalMoves(from: from, piece: piece)
+            let moves = pseudoLegalMoves(from: from, piece: piece,enPassantTarget: enPassantTarget)
 
             if moves.contains(where: { $0.to == kingSquare }) {
                 return true
@@ -222,20 +236,21 @@ extension Board {
 extension Board {
     func legalMoves(
         from square: Square,
-        piece: Piece
+        piece: Piece,
+        enPassantTarget: Square?
     ) -> [Move] {
 
-        pseudoLegalMoves(from: square, piece: piece).filter { move in
+        pseudoLegalMoves(from: square, piece: piece,enPassantTarget:enPassantTarget).filter { move in
             var copy = self
             copy[move.from] = nil
             copy[move.to] = piece
-            return !copy.isKingInCheck(color: piece.color)
+            return !copy.isKingInCheck(color: piece.color, enPassantTarget: enPassantTarget)
         }
     }
 }
 
 extension Board {
-    func legalMoves(for color: PieceColor) -> [Move] {
+    func legalMoves(for color: PieceColor,enPassantTarget:Square?) -> [Move] {
         var result: [Move] = []
 
         for index in squares.indices {
@@ -243,7 +258,7 @@ extension Board {
                   piece.color == color else { continue }
 
             let square = Square(file: index % 8, rank: index / 8)
-            result.append(contentsOf: legalMoves(from: square, piece: piece))
+            result.append(contentsOf: legalMoves(from: square, piece: piece, enPassantTarget: enPassantTarget))
         }
 
         return result
@@ -262,13 +277,13 @@ extension Board {
 }
 
 extension Board {
-    func hasAnyLegalMoves(for color: PieceColor) -> Bool {
+    func hasAnyLegalMoves(for color: PieceColor,enPassantTarget: Square?) -> Bool {
         for index in squares.indices {
             guard let piece = squares[index],
                   piece.color == color else { continue }
 
             let square = Square(file: index % 8, rank: index / 8)
-            if !legalMoves(from: square, piece: piece).isEmpty {
+            if !legalMoves(from: square, piece: piece, enPassantTarget: enPassantTarget).isEmpty {
                 return true
             }
         }
@@ -278,11 +293,11 @@ extension Board {
 
 extension Board {
     func isCheckmate(for color: PieceColor) -> Bool {
-        isKingInCheck(color: color) && !hasAnyLegalMoves(for: color)
+        isKingInCheck(color: color, enPassantTarget: nil) && !hasAnyLegalMoves(for: color, enPassantTarget: nil)
     }
 
     func isStalemate(for color: PieceColor) -> Bool {
-        !isKingInCheck(color: color) && !hasAnyLegalMoves(for: color)
+        !isKingInCheck(color: color, enPassantTarget: nil) && !hasAnyLegalMoves(for: color, enPassantTarget: nil)
     }
 }
 
@@ -291,7 +306,7 @@ func findCheckmateInOne(
     color: PieceColor
 ) -> Move? {
 
-    let moves = board.legalMoves(for: color)
+    let moves = board.legalMoves(for: color,enPassantTarget: nil)
 
     for move in moves {
         let newBoard = board.applying(move)
@@ -344,7 +359,8 @@ extension Board {
     
     func wouldSquareBeAttacked(
         _ square: Square,
-        by attacker: PieceColor
+        by attacker: PieceColor,
+        enPassantTarget: Square?
     ) -> Bool {
 
         for index in squares.indices {
@@ -365,7 +381,7 @@ extension Board {
                 continue
             }
 
-            let moves = pseudoLegalMoves(from: from, piece: piece)
+            let moves = pseudoLegalMoves(from: from, piece: piece, enPassantTarget: enPassantTarget)
 
             if moves.contains(where: { $0.to == square }) {
                 return true
@@ -408,6 +424,7 @@ extension Board {
 
         // Rook for castling
         board[Square(file: 7, rank: 0)] = Piece(type: .rook, color: .white)
+        board[Square(file: 0, rank: 0)] = Piece(type: .rook, color: .white)
 
         return board
     }
@@ -442,5 +459,71 @@ extension Board {
 
         return board
     }
+    
+    func positionHash() -> String {
+        squares.enumerated()
+            .map { index, piece in
+                if let piece {
+                    return "\(piece.color.rawValue)\(piece.type.rawValue)\(index)"
+                } else {
+                    return "._"
+                }
+            }
+            .joined(separator: "|")
+    }
+
 }
 
+extension Board {
+
+    static func enPassantTestPosition() -> Board {
+        var board = Board()
+        board.squares = Array(repeating: nil, count: 64)
+
+        // White pawn on e5
+        board[Square(file: 4, rank: 4)] = Piece(type: .pawn, color: .white)
+
+        // Black pawn that just advanced two squares: d7 → d5
+        board[Square(file: 3, rank: 4)] = Piece(type: .pawn, color: .black)
+
+        // Kings (required for legality)
+        board[Square(file: 4, rank: 0)] = Piece(type: .king, color: .white)
+        board[Square(file: 4, rank: 7)] = Piece(type: .king, color: .black)
+
+        return board
+    }
+}
+
+
+extension Board {
+
+    func findAmbiguousPieces(
+        for piece: Piece,
+        movingTo target: Square
+    ) -> [AmbiguousPiece] {
+
+        var result: [AmbiguousPiece] = []
+
+        for index in squares.indices {
+            guard let other = squares[index] else { continue }
+
+            // Same type & color
+            guard other.type == piece.type,
+                  other.color == piece.color else { continue }
+
+            let from = Square(file: index % 8, rank: index / 8)
+
+            // Skip the piece that is actually moving
+            if from == target { continue }
+
+            // Can THIS piece also move to the target?
+            let legalMoves = legalMoves(from: from, piece: other, enPassantTarget: nil)
+
+            if legalMoves.contains(where: { $0.to == target }) {
+                result.append(AmbiguousPiece(from: from))
+            }
+        }
+
+        return result
+    }
+}

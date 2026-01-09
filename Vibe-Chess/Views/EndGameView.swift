@@ -36,6 +36,10 @@ struct EndGameView: View {
             return "\(winner == .white ? "White" : "Black") wins by Checkmate"
         case .stalemate:
             return "Stalemate"
+        case .drawByFiftyMoveRule:
+            return "Draw by 50 move rule"
+        case .drawByThreefoldRepetition:
+            return "Draw by Threefold Repetition"
         }
     }
 }

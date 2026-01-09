@@ -23,23 +23,33 @@ struct SquareView: View {
                     .scaledToFit()
                     .padding(size * 0.1)
                     .id(piece.version)
+                    .rotationEffect(rotation(for: piece))
                     .matchedGeometryEffect(
                         id: piece.id,
                         in: namespace,
                         properties: .position
                     )
-                
+                    .allowsHitTesting(false)
                 if manager.lastCapturedSquare == square {
                     Image(piece.imageName)
                         .resizable()
                         .scaleEffect(1.2)
                         .opacity(0)
                         .animation(.easeOut(duration: 0.2), value: manager.lastCapturedSquare)
+                        .allowsHitTesting(false)
                 }
                 
             }
         }.frame(width: size, height: size)
     }
+    
+    private func rotation(for piece: Piece) -> Angle {
+            guard manager.rotateBlackPieces,
+                  piece.color == .black else {
+                return .degrees(0)
+            }
+            return .degrees(180)
+        }
 }
 
 extension Square {
