@@ -88,7 +88,7 @@ struct ContentView: View {
                     Spacer()
                     // Me
                     VStack(spacing: 8) {
-                        Text("(c) Jonathan French 2026")
+                        Text("© Jonathan French 2026")
                             .font(.headline)
                             .foregroundStyle(.gray)
                     }

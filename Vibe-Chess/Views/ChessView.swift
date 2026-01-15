@@ -27,36 +27,48 @@ struct ChessView: View {
                 VStack(spacing: 16) {
                     
                     // Top spacer (room for status / clocks later)
-                    Spacer().frame(height: 24)
-                    
+//                    Spacer().frame(height: 24)
+                    HStack {
+                        if manager.rotateBlackPieces {
+                            ControlsView(isTopPerspective: true,controlColor: .black)
+                        }
+//                        ClockView(time: manager.clock.whiteTime, isActive: manager.sideToMove == .white)
+//                        Spacer()
+//                        ClockView(time: manager.clock.blackTime, isActive: manager.sideToMove == .black)
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    Spacer()
+
                     ZStack {
                     // Chess board
                     ZStack {
                         BoardView()
                         PiecesLayer()
                         // Coordinates
+                        if manager.showCoordinates {
+                            BoardCoordinatesLayer(
+                                boardSize: manager.squareDimension * 8,
+                                padding: 20
+                            )
+                        }
                     }
                     .padding()
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 20))
-                    //.padding(.horizontal)
-                    if manager.showCoordinates {
-                        BoardCoordinatesLayer(
-                            boardSize: manager.squareDimension * 8,
-                            padding: 20
-                        )
-                    }
                 }
                 Spacer()
                     // Controls (undo, resign, etc.)
-                    ControlsView()
+                    ControlsView(isTopPerspective: false, controlColor: .white)
+                        .padding(.horizontal)
                         .padding(.top, 8)
 
                     // Move list
-                    MoveListView()
-                        .padding(.horizontal)
-                        .padding(.top, 4)
-
+                    if manager.playAgainstAI {
+                        MoveListView()
+                            .padding(.horizontal)
+                            .padding(.top, 4)
+                    }
                     Spacer(minLength: 12)
                 }
                 .onAppear {

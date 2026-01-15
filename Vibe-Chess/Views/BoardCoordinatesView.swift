@@ -23,9 +23,19 @@ struct BoardCoordinatesLayer: View {
                     .font(.caption)
                     .foregroundColor(.white)
                     .position(
-                        x: padding + CGFloat(file) * squareSize + (squareSize / 2),
-                        y: padding + boardSize + 4
+                        x: padding + CGFloat(file) * squareSize + 6,
+                        y: boardSize + 8
                     )
+                if manager.rotateBlackPieces {
+                    Text(files[file])
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .rotationEffect(.degrees(180))
+                        .position(
+                            x: padding + CGFloat(file) * squareSize + 6,
+                            y: -8
+                        )
+                }
             }
 
             // Ranks (left)
@@ -34,9 +44,19 @@ struct BoardCoordinatesLayer: View {
                     .font(.caption)
                     .foregroundColor(.white)
                     .position(
-                        x: padding - 10,
-                        y: padding + boardSize - (CGFloat(rank) * squareSize + squareSize / 2) - 4
+                        x: -8,
+                        y: boardSize - (CGFloat(rank) * squareSize + squareSize / 2)
                     )
+                if manager.rotateBlackPieces {                    
+                    Text("\(rank + 1)")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .rotationEffect(.degrees(180))
+                        .position(
+                            x: boardSize + padding - 8 ,
+                            y: boardSize - (CGFloat(rank) * squareSize + squareSize / 2)
+                        )
+                }
             }
         }
         .allowsHitTesting(false)

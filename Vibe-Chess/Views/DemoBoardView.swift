@@ -1,4 +1,13 @@
 //
+//  DemoBoardView.swift
+//  Vibe-Chess
+//
+//  Created by Jonathan French on 14.01.26.
+//
+
+import SwiftUI
+
+//
 //  BoardView.swift
 //  Vibe-Chess
 //
@@ -7,7 +16,7 @@
 
 import SwiftUI
 
-struct BoardView: View {
+struct DemoBoardView: View {
     @EnvironmentObject var manager: GameManager
     
     var body: some View {
@@ -16,21 +25,12 @@ struct BoardView: View {
                 HStack(spacing: 0) {
                     ForEach(0..<8, id: \.self) { file in
                         let square = Square(file: file, rank: rank)
-                        let isStagedFrom = manager.stagedFromSquare == square
-                        let isStagedTo   = manager.stagedToSquare == square
                         ZStack {
                             Rectangle()
                                 .fill((file + rank).isMultiple(of: 2)
                                       ? Color(.boardWhite)
                                       : Color(.boardBlack))
-                            Rectangle()
-                                .fill(
-                                    isStagedFrom ? Color.blue.opacity(0.35) :
-                                    isStagedTo   ? Color.green.opacity(0.35) :
-                                    Color.clear
-                                )
-                                .animation(.easeInOut(duration: 0.15), value: manager.stagedMove)
-                            if manager.selectedSquare == square {
+                           if manager.selectedSquare == square {
                                 Rectangle()
                                     .stroke(Color(.selected), lineWidth: 4)
                             }

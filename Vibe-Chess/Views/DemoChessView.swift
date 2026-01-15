@@ -38,7 +38,7 @@ struct DemoChessView: View {
 
                     // Board
                     ZStack {
-                        BoardView()
+                        DemoBoardView()
                         PiecesLayer()
                     }
                     .padding()

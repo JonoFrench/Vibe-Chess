@@ -40,6 +40,8 @@ struct MoveRecord {
     let disambiguationFile: Bool
     let disambiguationRank: Bool
 
+//    let previousClock: ChessClock
+
 }
 
 extension MoveRecord {

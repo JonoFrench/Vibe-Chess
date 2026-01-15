@@ -21,9 +21,17 @@ struct PiecesLayer: View {
                     rank: index / 8
                 )
 
-                if let piece = manager.board[square] {
+//                if let piece = manager.board[square] {
+//                  if let piece =
+//                        manager.stagedPiece(at: square) ??
+//                        (manager.isStagedFromSquare(square) ? nil : manager.board[square])
+//                {
+                      let displayedPiece =
+                          manager.stagedPiece(at: square) ??
+                          (manager.isStagedFromSquare(square) ? nil : manager.board[square])
+
                     SquareView(
-                        piece: piece,
+                        piece: displayedPiece,
                         size: manager.squareDimension,
                         square: square,
                         namespace: pieceNamespace
@@ -34,7 +42,7 @@ struct PiecesLayer: View {
                             boardSize: boardSize
                         )
                     )
-                }
+ //               }
             }
         }.onChange(of: manager.pendingPromotion) {
             guard let promotion = manager.pendingPromotion else { return }
@@ -44,8 +52,12 @@ struct PiecesLayer: View {
         .overlay {
             if let result = manager.gameResult {
                 EndGameView(result: result) {
+                    
                     manager.resetGame()
                 }
+            }
+            if manager.paused {
+                PauseView()
             }
         }
     }

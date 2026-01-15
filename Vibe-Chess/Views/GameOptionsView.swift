@@ -9,14 +9,21 @@ import SwiftUI
 
 struct GameOptionsView: View {
     @EnvironmentObject var manager: GameManager
+    @Environment(\.dismiss) private var dismiss
     @Binding var isPresented: Bool
     @State private var showResignConfirmation = false
 
     var body: some View {
         NavigationStack {
             Form {
-
+                
                 Section("Display") {
+                    Picker("Time Control", selection: $manager.timeControl) {
+                        ForEach(TimeControl.allCases) { control in
+                            Text(control.rawValue).tag(control)
+                        }
+                    }
+                    
                     Toggle(
                         "Show Coordinates",
                         isOn: $manager.showCoordinates
@@ -29,14 +36,14 @@ struct GameOptionsView: View {
                         "Show Last Move",
                         isOn: $manager.showLastMove
                     )
-
+                    
                 }
-
+                
                 Section("Game") {
                     Button("Save Game") {
                         // TODO
                     }
-
+                    
                     Button("Resign Game", role: .destructive) {
                         showResignConfirmation = true
                     }
@@ -50,16 +57,21 @@ struct GameOptionsView: View {
                     }
                 }
             }
-            .confirmationDialog(
+        }
+            .alert(
                 "Are you sure you want to resign?",
                 isPresented: $showResignConfirmation
             ) {
                 Button("Resign", role: .destructive) {
-                    manager.resetGame()
+                    //manager.resetGame()
+                    manager.stopClock()
+                    isPresented = false
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {
                     isPresented = false
                 }
-                Button("Cancel", role: .cancel) {}
             }
         }
-    }
+//    }
 }

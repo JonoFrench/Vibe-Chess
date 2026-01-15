@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct EndGameView: View {
+    @Environment(\.dismiss) private var dismiss
+
     let result: GameResult
     let onRestart: () -> Void
 
@@ -20,12 +22,19 @@ struct EndGameView: View {
                     .font(.largeTitle)
                     .foregroundColor(.white)
 
-                Button("New Game") {
-                    onRestart()
+                Button("Finish") {
+                    dismiss()
+                    //onRestart()
                 }
                 .padding()
                 .background(Color.white)
                 .cornerRadius(8)
+                
+                Text(title)
+                    .font(.largeTitle)
+                    .foregroundColor(.white)
+                    .rotationEffect(.degrees(180))
+
             }
         }
     }
@@ -40,6 +49,11 @@ struct EndGameView: View {
             return "Draw by 50 move rule"
         case .drawByThreefoldRepetition:
             return "Draw by Threefold Repetition"
+        case .timeout(let winner):
+            return "\(winner == .white ? "White" : "Black") wins by Time"
+        case .resignation(let winner):
+            return "\(winner == .white ? "White" : "Black") wins by Resignation"
+
         }
     }
 }

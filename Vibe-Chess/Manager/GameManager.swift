@@ -15,6 +15,8 @@ enum GameResult: Equatable {
     case stalemate
     case drawByFiftyMoveRule
     case drawByThreefoldRepetition
+    case timeout(winner: PieceColor)
+    case resignation(winner: PieceColor)
 }
 
 struct CastlingRights: Codable, Equatable, Hashable {
@@ -34,6 +36,30 @@ struct PositionKey: Hashable {
     let boardHash: String
     let sideToMove: PieceColor
     let castlingRights: CastlingRights
+}
+
+struct ChessClock:Codable, Equatable {
+    var whiteTime: TimeInterval
+    var blackTime: TimeInterval
+    var isRunning: Bool = false
+}
+
+enum TimeControl: String, CaseIterable, Identifiable {
+    case three = "3 min"
+    case five = "5 min"
+    case ten = "10 min"
+    case fifteen = "15 min"
+
+    var id: String { rawValue }
+
+    var seconds: TimeInterval {
+        switch self {
+        case .three: return 3 * 60
+        case .five: return 5 * 60
+        case .ten: return 10 * 60
+        case .fifteen: return 15 * 60
+        }
+    }
 }
 
 @MainActor
@@ -56,6 +82,14 @@ final class GameManager: ObservableObject {
     @Published var rotateBlackPieces: Bool = false
     @Published var showCoordinates: Bool = true
     @Published var showLastMove: Bool = true
+    @Published var clock = ChessClock(
+        whiteTime: 1 * 60,
+        blackTime: 1 * 60
+    )
+    @Published var timeControl: TimeControl = .three
+    @Published var stagedMove: Move? = nil
+    @Published var paused = false
+    private var clockTimer: Timer?
 
     private var positionCounts: [PositionKey: Int] = [:]
     private let ai = SimpleChessAI()
@@ -67,6 +101,7 @@ final class GameManager: ObservableObject {
     var canUndo: Bool {
         !moveHistory.isEmpty
     }
+    var gameStarted = false
 
     init() {
         if UIDevice.current.userInterfaceIdiom == .pad {
@@ -92,11 +127,18 @@ final class GameManager: ObservableObject {
     }
 
     func select(_ square: Square) {
+        if !gameStarted && !playAgainstAI {
+            gameStarted = true
+            startClock()
+        }
         guard let piece = board[square] else {
             // Tap on empty square
             if let from = selectedSquare {
-                attemptMove(from: from, to: square)
-                
+                if playAgainstAI {
+                    attemptMove(from: from, to: square)
+                } else {
+                    stageMove(from: from, to: square)
+                }
             }
             selectedSquare = nil
             return
@@ -112,6 +154,55 @@ final class GameManager: ObservableObject {
             selectedSquare = nil
         }
     }
+    
+//    func stageMove(_ move: Move) {
+//        withAnimation(.easeInOut(duration: 0.2)) {
+//            stagedMove = move
+//        }
+//    }
+
+    func clearStagedMove() {
+        withAnimation(.easeInOut(duration: 0.15)) {
+            stagedMove = nil
+        }
+    }
+
+    func stageMove(from: Square, to: Square) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            let moves = legalMoves(from: from)
+            guard let move = moves.first(where: { $0.to == to }) else { return }
+            
+            stagedMove = move
+        }
+    }
+
+    func commitStagedMove() {
+        guard let move = stagedMove else { return }
+
+        stagedMove = nil
+        executeMove(move)
+    }
+
+    func stagedPiece(at square: Square) -> Piece? {
+        guard let move = stagedMove else { return nil }
+        guard let piece = board[move.from] else { return nil }
+
+        if square == move.to { return piece }
+        return nil
+    }
+
+    func isStagedFromSquare(_ square: Square) -> Bool {
+        stagedMove?.from == square
+    }
+
+    var stagedFromSquare: Square? {
+        stagedMove?.from
+    }
+
+    var stagedToSquare: Square? {
+        stagedMove?.to
+    }
+
     
     func executeMove(_ move: Move) {
         guard let piece = board[move.from] else { return }
@@ -148,7 +239,8 @@ final class GameManager: ObservableObject {
             isCheck: isCheck,
             isCheckmate: isCheckmate,
             disambiguationFile: disambiguationFile,
-            disambiguationRank: disambiguationRank
+            disambiguationRank: disambiguationRank,
+//            previousClock:
         )
 
         applyMove(record)
@@ -217,6 +309,7 @@ final class GameManager: ObservableObject {
 
             sideToMove = sideToMove.opponent
             lastMove = move
+//            startClock()
         }
 
         checkForGameEnd()
@@ -441,9 +534,11 @@ final class GameManager: ObservableObject {
 
         if board.isCheckmate(for: sideToMove) {
             print("CHECKMATE detected")
+            stopClock()
             gameResult = .checkmate(winner: sideToMove.opponent)
         } else if board.isStalemate(for: sideToMove) {
             print("STALEMATE detected")
+            stopClock()
             gameResult = .stalemate
         }
         else if halfMoveClock >= 100 {
@@ -473,6 +568,10 @@ final class GameManager: ObservableObject {
         lastCapturedSquare = nil
 
         moveHistory.removeAll()
+        gameStarted = false
+        
+        clock = ChessClock(whiteTime: timeControl.seconds, blackTime: timeControl.seconds)
+//        startClock()
         
 #if DEBUG
         //loadStalemateTestPosition()
@@ -494,7 +593,9 @@ final class GameManager: ObservableObject {
             // Undo human move
             undoLastMove()
         } else {
-            undoLastMove()
+//            undoLastMove()
+            clearStagedMove()
+            stagedMove = nil
         }
     }
 
@@ -670,6 +771,45 @@ final class GameManager: ObservableObject {
             sideToMove: sideToMove,
             castlingRights: castlingRights
         )
+    }
+    
+    func startClock() {
+        stopClock()
+
+        clock.isRunning = true
+
+        clockTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, self.clock.isRunning else { return }
+
+            switch self.sideToMove {
+            case .white:
+                self.clock.whiteTime -= 1
+                if self.clock.whiteTime <= 0 {
+                    self.handleTimeLoss(for: .white)
+                }
+            case .black:
+                self.clock.blackTime -= 1
+                if self.clock.blackTime <= 0 {
+                    self.handleTimeLoss(for: .black)
+                }
+            }
+        }
+    }
+
+
+    func stopClock() {
+        clockTimer?.invalidate()
+        clockTimer = nil
+        clock.isRunning = false
+    }
+
+    func switchClock() {
+        // Nothing fancy yet — ticking depends on sideToMove
+    }
+
+    func handleTimeLoss(for color: PieceColor) {
+        stopClock()
+        gameResult = .timeout(winner: color.opponent)
     }
 
 }
