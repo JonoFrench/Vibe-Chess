@@ -13,7 +13,12 @@ struct Move: Hashable, Codable {
     var promotion: PieceType? = nil
 }
 
-struct MoveRecord {
+struct RookMove: Codable, Equatable {
+    let from: Square
+    let to: Square
+}
+
+struct MoveRecord: Codable, Identifiable {
     let id = UUID()
     
     let move: Move
@@ -29,7 +34,7 @@ struct MoveRecord {
     let previousEnPassantTarget: Square?
 
     // Castling
-    let rookMove: (from: Square, to: Square)?
+    let rookMove: RookMove?
 
     // Promotion
     let promotion: PieceType?

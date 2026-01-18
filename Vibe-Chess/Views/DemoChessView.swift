@@ -10,7 +10,7 @@ import SwiftUI
 struct DemoChessView: View {
     @EnvironmentObject var manager: GameManager
     let demo: DemoItem
-
+    
     var body: some View {
         GeometryReader { geo in
             ZStack {
@@ -20,32 +20,51 @@ struct DemoChessView: View {
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
-
+                
                 VStack(spacing: 16) {
-
+                    
                     // Title + description
                     VStack(spacing: 6) {
                         Text(demo.title)
                             .font(.title2.bold())
                             .foregroundStyle(.white)
-
+                        
                         Text(demo.description)
                             .font(.body)
                             .foregroundStyle(.white.opacity(0.75))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                     }
-
-                    // Board
-                    ZStack {
-                        DemoBoardView()
-                        PiecesLayer()
-                    }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
                     .padding(.horizontal)
-
+                    .padding(.top, 8)
+//                    Spacer()
+                    ZStack {
+                        // Board
+//                        ZStack {
+                            BoardView()
+                            PiecesLayer()
+                            // Coordinates
+                            if manager.showCoordinates {
+                                BoardCoordinatesView(
+                                    boardSize: manager.squareDimension * 8,
+                                    padding: 20
+                                )
+                            }
+                        }
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+//                    }
+//                    Spacer()
+// Explanation
+                    VStack(spacing: 6) {
+                        Text(demo.description)
+                            .font(.body)
+                            .foregroundStyle(.white.opacity(0.75))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    
                     // Controls
                     HStack {
                         Button("Reset Demo") {
@@ -55,17 +74,17 @@ struct DemoChessView: View {
                         .buttonStyle(.borderedProminent)
                         .foregroundColor(.white)
                         .foregroundStyle(.black)
-
+                        
                         Spacer()
-
+                        
                     }
                     .padding(.horizontal)
-
+                    
                     Spacer()
                 }
-                .padding(.top, 24)
+//                .padding(.top, 24)
                 .onAppear {
-                    manager.squareDimension = geo.size.width * 0.85 / 8
+                    manager.squareDimension = geo.size.width * 0.90 / 8
                     manager.lastMove = nil
                     demo.loadPosition(manager)
                 }

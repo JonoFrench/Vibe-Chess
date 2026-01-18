@@ -10,7 +10,9 @@ import SwiftUI
 import UIKit
 import Combine
 
-enum GameResult: Equatable {
+enum Device { case iPhone, iPad }
+
+enum GameResult: Codable, Equatable {
     case checkmate(winner: PieceColor)
     case stalemate
     case drawByFiftyMoveRule
@@ -32,7 +34,7 @@ struct PromotionRequest: Identifiable, Equatable {
     let color: PieceColor
 }
 
-struct PositionKey: Hashable {
+struct PositionKey: Codable, Hashable {
     let boardHash: String
     let sideToMove: PieceColor
     let castlingRights: CastlingRights
@@ -89,6 +91,8 @@ final class GameManager: ObservableObject {
     @Published var timeControl: TimeControl = .three
     @Published var stagedMove: Move? = nil
     @Published var paused = false
+    @Published var shouldOpenBoard = false
+    @Published var shouldReturnToMainMenu = false
     private var clockTimer: Timer?
 
     private var positionCounts: [PositionKey: Int] = [:]
@@ -102,12 +106,12 @@ final class GameManager: ObservableObject {
         !moveHistory.isEmpty
     }
     var gameStarted = false
-
+    var deviceType:Device = .iPhone
+    var deviceMulti = 1.0
     init() {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-        } else {
-            
-        }
+        deviceType = UIDevice.current.userInterfaceIdiom == .pad ? .iPad : .iPhone
+        deviceMulti = UIDevice.current.userInterfaceIdiom == .pad ? 2.0 : 1.0
+
 #if DEBUG
         //loadStalemateTestPosition()
         //loadCheckmateTestPosition()
@@ -150,7 +154,11 @@ final class GameManager: ObservableObject {
             selectedSquare = square
         } else if let from = selectedSquare {
             // Capture opponent piece
-            attemptMove(from: from, to: square)
+            if playAgainstAI {
+                attemptMove(from: from, to: square)
+            } else {
+                stageMove(from: from, to: square)
+            }
             selectedSquare = nil
         }
     }
@@ -430,7 +438,7 @@ final class GameManager: ObservableObject {
     private func rookCastlingMoveIfNeeded(
         _ move: Move,
         _ piece: Piece
-    ) -> (from: Square, to: Square)? {
+    ) -> RookMove? {
 
         guard piece.type == .king else { return nil }
 
@@ -441,15 +449,15 @@ final class GameManager: ObservableObject {
 
         if fileDelta == 2 {
             // King-side castling
-            return (
+            return (RookMove(
                 from: Square(file: 7, rank: rank),
-                to: Square(file: 5, rank: rank)
+                to: Square(file: 5, rank: rank))
             )
         } else {
             // Queen-side castling
-            return (
+            return (RookMove(
                 from: Square(file: 0, rank: rank),
-                to: Square(file: 3, rank: rank)
+                to: Square(file: 3, rank: rank))
             )
         }
     }
@@ -810,6 +818,53 @@ final class GameManager: ObservableObject {
     func handleTimeLoss(for color: PieceColor) {
         stopClock()
         gameResult = .timeout(winner: color.opponent)
+    }
+
+    func saveCurrentGame(named name: String) {
+        var games = SaveManager.loadSavedGames()
+
+        let save = SavedGame(
+            id: UUID(),
+            name: name,
+            date: Date(),
+            board: board,
+            sideToMove: sideToMove,
+            castlingRights: castlingRights,
+            moveHistory: moveHistory,
+            whiteTime: clock.whiteTime,
+            blackTime: clock.blackTime,
+            playAgainstAI: playAgainstAI
+        )
+        print("Saving \(save)")
+        games.append(save)
+        SaveManager.saveGames(games)
+    }
+
+    func loadGame(_ game: SavedGame) {
+        board = game.board
+        sideToMove = game.sideToMove
+        castlingRights = game.castlingRights
+        moveHistory = game.moveHistory
+        clock.whiteTime = game.whiteTime
+        clock.blackTime = game.blackTime
+        playAgainstAI = game.playAgainstAI
+
+        selectedSquare = nil
+        gameResult = nil
+        print("Loading \(game)")
+        shouldOpenBoard = true
+    }
+    
+    func resumeLastGame() -> Bool {
+        guard let game = SaveManager.loadMostRecentGame() else { return false }
+
+        board = game.board
+        sideToMove = game.sideToMove
+        castlingRights = game.castlingRights
+        gameResult = nil
+
+        shouldOpenBoard = true
+        return true
     }
 
 }

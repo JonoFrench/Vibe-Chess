@@ -41,7 +41,10 @@ struct GameOptionsView: View {
                 
                 Section("Game") {
                     Button("Save Game") {
-                        // TODO
+                        manager.saveCurrentGame(named: "Game on \(Date())")
+                        manager.stopClock()
+                        manager.shouldReturnToMainMenu = true
+                        isPresented = false
                     }
                     
                     Button("Resign Game", role: .destructive) {
@@ -65,8 +68,8 @@ struct GameOptionsView: View {
                 Button("Resign", role: .destructive) {
                     //manager.resetGame()
                     manager.stopClock()
+                    manager.shouldReturnToMainMenu = true
                     isPresented = false
-                    dismiss()
                 }
                 Button("Cancel", role: .cancel) {
                     isPresented = false

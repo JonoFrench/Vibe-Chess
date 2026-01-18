@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct BoardCoordinatesLayer: View {
+struct BoardCoordinatesView: View {
     @EnvironmentObject var manager: GameManager
 
     let boardSize: CGFloat
@@ -20,7 +20,7 @@ struct BoardCoordinatesLayer: View {
             // Files (bottom)
             ForEach(0..<8, id: \.self) { file in
                 Text(files[file])
-                    .font(.caption)
+                    .font(.caption )
                     .foregroundColor(.white)
                     .position(
                         x: padding + CGFloat(file) * squareSize + 6,

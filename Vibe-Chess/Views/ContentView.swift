@@ -21,12 +21,12 @@ struct ContentView: View {
                 )
                 .ignoresSafeArea()
                 
-                VStack(spacing: 40) {
+                VStack(spacing: 40 * manager.deviceMulti) {
                     
                     // Title
-                    VStack(spacing: 8) {
+                    VStack(spacing: 8 * manager.deviceMulti) {
                         Text("VIBE CHESS")
-                            .font(.system(size: 42, weight: .bold, design: .serif))
+                            .font(.system(size: 42 * manager.deviceMulti, weight: .bold, design: .serif))
                             .foregroundStyle(.white)
                         
                         Text("Play. Think. Win.")
@@ -38,14 +38,15 @@ struct ContentView: View {
                     Image(systemName: "checkerboard.rectangle")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 120, height: 120)
+                        .frame(width: 120 * manager.deviceMulti, height: 120 * manager.deviceMulti)
                         .foregroundStyle(.white.opacity(0.9))
                     
                     // Menu buttons
-                    VStack(spacing: 20) {
+                    VStack(spacing: 20 * manager.deviceMulti) {
                         
                         NavigationLink {
-                            ChessView()
+                            HumanGameSetupView()
+                            //ChessView()
                                 .onAppear {
                                     manager.playAgainstAI = false
                                     manager.rotateBlackPieces = true
@@ -81,32 +82,49 @@ struct ContentView: View {
                         } label: {
                             MenuButton(title: "Instructions", icon: "info.circle")
                         }
+                        //                        Button {
+                        //                            let didLoad = manager.resumeLastGame()
+                        //                            if !didLoad {
+                        //                                // Optional: show an alert "No saved game"
+                        //                            }
+                        //                        } label: {
+                        //                            MenuButton(title: "Resume Last Game", icon: "clock.arrow.circlepath")
+                        //                        }
+                        //                        .disabled(SaveManager.loadMostRecentGame() == nil)
+                        //
                         
+//                        NavigationLink(
+//                            destination: ChessView(),
+//                            isActive: $manager.shouldOpenBoard) {
+//                                EmptyView()
+//                            }
                     }
-                    .padding(.top, 20)
+                    .padding(.top, 20 * manager.deviceMulti)
                     
                     Spacer()
                     // Me
-                    VStack(spacing: 8) {
+                    VStack(spacing: 8 * manager.deviceMulti) {
                         Text("© Jonathan French 2026")
                             .font(.headline)
                             .foregroundStyle(.gray)
                     }
-                    
                 }
-                .padding(.top, 80)
-                .padding(.horizontal, 24)
+                .padding(.top, 80 * manager.deviceMulti )
+                .padding(.horizontal, 24 * manager.deviceMulti)
+            }.onAppear {
+                manager.shouldReturnToMainMenu = false
             }
         }
     }
 }
 
 struct MenuButton: View {
+    @EnvironmentObject var manager: GameManager
     let title: String
     let icon: String
     
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 16 * manager.deviceMulti) {
             Image(systemName: icon)
                 .font(.title2)
             
@@ -120,10 +138,10 @@ struct MenuButton: View {
         .padding()
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16 * manager.deviceMulti)
                 .fill(Color.white)
         )
-        .shadow(color: .black.opacity(0.25), radius: 6, y: 4)
+        .shadow(color: .black.opacity(0.25), radius: 6 * manager.deviceMulti, y: 4 * manager.deviceMulti)
     }
 }
 
