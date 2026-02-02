@@ -7,9 +7,7 @@
 
 import SwiftUI
 
-import SwiftUI
-
-struct HumanGameSetupView: View {
+struct StartView: View {
     @EnvironmentObject var manager: GameManager
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTimeControl: TimeControl = .ten
@@ -18,66 +16,86 @@ struct HumanGameSetupView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color.black, Color(.darkGray)],
+                colors: [Color.black,manager.accentColor.color.opacity(0.8)],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            
+            .statusBar(hidden: true)
+
             VStack(spacing: 32) {
                 
-                Text("Human vs Human")
+                Text("Two Player Game")
                     .font(.system(size: 38, weight: .bold, design: .serif))
                     .foregroundStyle(.white)
+                Image(systemName: "person.2.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 80 * manager.deviceMulti, height: 80 * manager.deviceMulti)
+                    .foregroundStyle(.white.opacity(0.9))
                 
                 VStack(spacing: 16) {
+                    NavigationLink {
+                        ChessView()
+                            .onAppear {
+                                manager.loadGame(SaveManager.loadAutoResume(playAgainstAI: false)!)
+                            }
+                    } label: {
+                        MenuButton(title: "Resume Current Game",
+                                   icon: "play.circle.fill",
+                                   isEnabled: SaveManager.loadAutoResume(playAgainstAI: false) != nil)
+                    }
+                    .disabled(
+                        SaveManager.loadAutoResume(playAgainstAI: false) == nil
+                    )
+                    
                     Button {
                         showLoadSheet = true
                     }
                     label: {
-                        MenuButton(title: "Load Saved Game", icon: "clock.arrow.circlepath")
-                    }                }
-                
-                //                Spacer()
-                
-                NavigationLink {
-                    if manager.resumeLastGame() {
-                        ChessView()
-                    }
-                } label: {
-                    MenuButton(title: "Resume Last Game", icon: "clock.arrow.circlepath")
+                        MenuButton(title: "Load Saved Game",
+                                   icon: "tray.and.arrow.down.fill",
+                                   isEnabled: SaveManager.loadUserGames(filter: false).count > 0)
+                    }.disabled(
+                        SaveManager.loadUserGames(filter: false).count == 0
+                    )
                 }
-                //.disabled(SaveManager.loadMostRecentGame() == nil)
-                
-                
                 Spacer()
-                VStack(spacing: 16) {
-                    Text("Select Game Time")
-                        .font(.headline)
-                        .foregroundStyle(.gray)
+                VStack(spacing: 16 * manager.deviceMulti) {
+                    Toggle(
+                        "Play Face to Face",
+                        isOn: $manager.playFace2Face
+                    ).foregroundStyle(.white)
                     
-                    Picker("Time Control", selection: $selectedTimeControl) {
-                        ForEach(TimeControl.allCases) { tc in
-                            Text(tc.rawValue).tag(tc)
+                    VStack(spacing: 16) {
+                        Text("Select Game Time")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        
+                        Picker("Time Control", selection: $selectedTimeControl) {
+                            ForEach(TimeControl.allCases) { tc in
+                                Text(tc.rawValue).tag(tc)
+                            }
                         }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                }
-                
+                }.frame(width:420)
                 NavigationLink {
                     ChessView()
                         .onAppear {
-                            manager.playAgainstAI = false
-                            manager.rotateBlackPieces = true
-                            manager.resetGame()
+//                            manager.playAgainstAI = false
+//                            manager.playFace2Face = true
+//                            manager.resetGame()
                             
                             // Wire the clock
-                            manager.clock.whiteTime = selectedTimeControl.seconds
-                            manager.clock.blackTime = selectedTimeControl.seconds
+                            if let seconds = selectedTimeControl.seconds {
+                                manager.clock.whiteTime = seconds
+                                manager.clock.blackTime = seconds
+                            }
                         }
                 } label: {
-                    MenuButton(title: "Start New Game", icon: "info.circle")
+                    MenuButton(title: "Start New Game", icon: "person.2.fill")
                 }
                 Spacer()
             }
@@ -85,7 +103,7 @@ struct HumanGameSetupView: View {
             .padding(.top, 60)
         }
         .sheet(isPresented: $showLoadSheet) {
-            SavedGamesListView()
+            SavedGamesListView(filter: .human)
                 .environmentObject(manager)
         }
         .onChange(of: manager.shouldReturnToMainMenu) {
@@ -95,7 +113,17 @@ struct HumanGameSetupView: View {
         }
         .navigationDestination(isPresented: $manager.shouldOpenBoard) {
             ChessView()
+//                .onAppear {
+//                    //                            manager.playAgainstAI = false
+//                    //                            manager.playFace2Face = true
+//                    //                            manager.resetGame()
+//                    
+//                    // Wire the clock
+//                    if let seconds = selectedTimeControl.seconds {
+//                        manager.clock.whiteTime = seconds
+//                        manager.clock.blackTime = seconds
+//                    }
+//                }
         }
-
     }
 }

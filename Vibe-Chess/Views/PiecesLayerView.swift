@@ -49,13 +49,17 @@ struct PiecesLayer: View {
             manager.promotePawn(at: promotion.square, to: .queen)
         }
         .frame(width: boardSize, height: boardSize)
+//        .onChange(of: manager.gameResult) {
+//            GameResultView()
+//        }
         .overlay {
-            if let result = manager.gameResult {
-                EndGameView(result: result) {
-                    
-                    manager.resetGame()
-                }
-            }
+//            if let result = manager.gameResult {
+//                EndGameView(result: result) {
+////                    manager.games
+//                    manager.autoSave()
+//                    manager.resetGame()
+//                }
+//            }
             if manager.paused {
                 PauseView()
             }

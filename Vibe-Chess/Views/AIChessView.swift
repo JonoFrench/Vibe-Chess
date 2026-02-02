@@ -1,13 +1,13 @@
 //
-//  ChessView.swift
+//  AIChessView.swift
 //  Vibe-Chess
 //
-//  Created by Jonathan French on 30.12.25.
+//  Created by Jonathan French on 25.01.26.
 //
 
 import SwiftUI
 
-struct ChessView: View {
+struct AIChessView: View {
     @EnvironmentObject var manager: GameManager
     @Environment(\.dismiss) private var dismiss
     @State private var showGameOptions = false
@@ -28,30 +28,13 @@ struct ChessView: View {
                 VStack(spacing: 16) {
                     
                     // Top spacer (room for status / clocks later)
-                    HStack {
-                        if !manager.playFace2Face {
-                            ClockView(time: manager.clock.whiteTime, isActive: manager.sideToMove == .white)
-                            Spacer()
-                            ClockView(time: manager.clock.blackTime, isActive: manager.sideToMove == .black)
-                            let _ = print("colcks \(manager.playFace2Face)")
-                        } else {
-                            ControlsView(isTopPerspective: true, controlColor: .black)
-                                .padding(.horizontal)
-                                .padding(.top, 8)
-                            let _ = print("Controls \(manager.playFace2Face)")
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+                    //                    Spacer().frame(height: 24)
                     Spacer()
                     
                     ZStack {
                         // Chess board
                         BoardView()
                         PiecesLayer()
-//                        if let gameResult =  manager.gameResult {
-//                            GameResultView()
-//                        }
                     }
                     .padding(manager.deviceType == .iPad ? 30 : 20)
                     .background(.ultraThinMaterial)
@@ -66,28 +49,29 @@ struct ChessView: View {
                     }
                     .frame(width:boardSize,height: boardSize)
                     .animation(.easeInOut(duration: 0.2), value: manager.showCoordinates)
-                        .rotationEffect(
-                            manager.rotateBoardForBlack ? .degrees(180) : .degrees(0)
-                        )
-                        .animation(.easeInOut(duration: 0.25), value: manager.rotateBoardForBlack)
+                    .rotationEffect(
+                        manager.rotateBoardForBlack ? .degrees(180) : .degrees(0)
+                    )
+                    .animation(.easeInOut(duration: 0.25), value: manager.rotateBoardForBlack)
                     Spacer()
                     // Controls (undo, resign, etc.)
-                    if manager.playFace2Face {
+//                    if !manager.rotateBlackPieces {
                         ControlsView(isTopPerspective: false, controlColor: .white)
                             .padding(.horizontal)
                             .padding(.top, 8)
-                    } else {
-                        HStack {
-                            ControlsView(isTopPerspective: false, controlColor: .white)
-                            //                                Spacer()
-                            ControlsView(isTopPerspective: false, controlColor: .black)
-                        }.padding(.horizontal)
-                            .padding(.top, 8)
-                    }
+//                    } else {
+//                        HStack {
+//                            ControlsView(isTopPerspective: false, controlColor: .white)
+////                                Spacer()
+//                            ControlsView(isTopPerspective: false, controlColor: .black)
+//                        }.padding(.horizontal)
+//                            .padding(.top, 8)
+//                    }
                     // Move list
-                    MoveListView()
-                        .padding(.horizontal)
-                        .padding(.top, 4)
+                    //                    if manager.playAgainstAI {
+//                    MoveListView()
+//                        .padding(.horizontal)
+//                        .padding(.top, 4)
                     Spacer(minLength: 12)
                 }
                 .onAppear {
@@ -114,6 +98,7 @@ struct ChessView: View {
                 }
 
             }
+            
         }
         .navigationBarBackButtonHidden(true)
         .onChange(of: manager.shouldReturnToMainMenu) {
@@ -121,14 +106,8 @@ struct ChessView: View {
                 dismiss()
             }
         }
-//        .onChange(of: manager.gameResult) {
-//            GameResultView()
-//        }
     }
 }
-
 #Preview {
-    let previewEnvObject = GameManager()
-    ChessView()
-        .environmentObject(previewEnvObject)
+    AIChessView()
 }

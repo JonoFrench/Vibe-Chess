@@ -15,11 +15,12 @@ struct ContentView: View {
             ZStack {
                 // Background
                 LinearGradient(
-                    colors: [Color.black, Color(.darkGray)],
+                    colors: [Color.black,manager.accentColor.color.opacity(0.8)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
+                .statusBar(hidden: true)
                 
                 VStack(spacing: 40 * manager.deviceMulti) {
                     
@@ -45,22 +46,21 @@ struct ContentView: View {
                     VStack(spacing: 20 * manager.deviceMulti) {
                         
                         NavigationLink {
-                            HumanGameSetupView()
-                            //ChessView()
+                            StartView()
                                 .onAppear {
                                     manager.playAgainstAI = false
-                                    manager.rotateBlackPieces = true
+                                    manager.playFace2Face = true
                                     manager.resetGame()
                                 }
                         } label: {
-                            MenuButton(title: "Human vs Human", icon: "person.2.fill")
+                            MenuButton(title: "Two Player Game", icon: "person.2.fill")
                         }
                         
                         NavigationLink {
-                            ChessView()
+                            StartViewAI()
                                 .onAppear {
                                     manager.playAgainstAI = true
-                                    manager.rotateBlackPieces = false
+                                    manager.playFace2Face = false
                                     manager.resetGame()
                                 }
                         } label: {
@@ -82,31 +82,16 @@ struct ContentView: View {
                         } label: {
                             MenuButton(title: "Instructions", icon: "info.circle")
                         }
-                        //                        Button {
-                        //                            let didLoad = manager.resumeLastGame()
-                        //                            if !didLoad {
-                        //                                // Optional: show an alert "No saved game"
-                        //                            }
-                        //                        } label: {
-                        //                            MenuButton(title: "Resume Last Game", icon: "clock.arrow.circlepath")
-                        //                        }
-                        //                        .disabled(SaveManager.loadMostRecentGame() == nil)
-                        //
-                        
-//                        NavigationLink(
-//                            destination: ChessView(),
-//                            isActive: $manager.shouldOpenBoard) {
-//                                EmptyView()
-//                            }
                     }
+                    .frame(maxWidth:.infinity)
                     .padding(.top, 20 * manager.deviceMulti)
                     
-                    Spacer()
+//                    Spacer()
                     // Me
                     VStack(spacing: 8 * manager.deviceMulti) {
                         Text("© Jonathan French 2026")
                             .font(.headline)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.black)
                     }
                 }
                 .padding(.top, 80 * manager.deviceMulti )
@@ -120,30 +105,46 @@ struct ContentView: View {
 
 struct MenuButton: View {
     @EnvironmentObject var manager: GameManager
+
     let title: String
     let icon: String
-    
+    var isEnabled: Bool = true
+
+    private var maxWidth: CGFloat? {
+        manager.deviceType == .iPad ? 420 : nil
+    }
+
     var body: some View {
         HStack(spacing: 16 * manager.deviceMulti) {
             Image(systemName: icon)
                 .font(.title2)
-            
+                .opacity(isEnabled ? 1 : 0.5)
+
             Text(title)
                 .font(.title3)
                 .fontWeight(.semibold)
-            
+                .opacity(isEnabled ? 1 : 0.5)
+
             Spacer()
         }
-        .foregroundStyle(.black)
-        .padding()
-        .frame(maxWidth: .infinity)
+        .foregroundStyle(isEnabled ? .black : .gray)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 18)
+        .frame(maxWidth: maxWidth)
         .background(
-            RoundedRectangle(cornerRadius: 16 * manager.deviceMulti)
-                .fill(Color.white)
+            RoundedRectangle(cornerRadius: 18 * manager.deviceMulti)
+                .fill(Color.white.opacity(isEnabled ? 1 : 0.9))
         )
-        .shadow(color: .black.opacity(0.25), radius: 6 * manager.deviceMulti, y: 4 * manager.deviceMulti)
+        .shadow(
+            color: .black.opacity(isEnabled ? 0.25 : 0),
+            radius: 6 * manager.deviceMulti,
+            y: 4 * manager.deviceMulti
+        )
+        .contentShape(Rectangle())
+        .animation(.easeInOut(duration: 0.2), value: isEnabled)
     }
 }
+
 
 #Preview {
     let previewEnvObject = GameManager()

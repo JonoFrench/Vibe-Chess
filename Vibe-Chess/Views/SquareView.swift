@@ -24,6 +24,7 @@ struct SquareView: View {
                     .padding(size * 0.1)
                     .id(piece.version)
                     .rotationEffect(rotation(for: piece))
+                    .rotationEffect(boardRotation(for: piece))
                     .matchedGeometryEffect(
                         id: piece.id,
                         in: namespace,
@@ -44,12 +45,21 @@ struct SquareView: View {
     }
     
     private func rotation(for piece: Piece) -> Angle {
-            guard manager.rotateBlackPieces,
+            guard manager.playFace2Face,
                   piece.color == .black else {
                 return .degrees(0)
             }
             return .degrees(180)
         }
+    
+    private func boardRotation(for piece: Piece) -> Angle {
+        guard !manager.playFace2Face, !manager.playAgainstAI,
+              manager.sideToMove == .black else {
+                return .degrees(0)
+            }
+            return .degrees(180)
+        }
+
 }
 
 extension Square {

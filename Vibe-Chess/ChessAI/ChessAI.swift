@@ -4,8 +4,28 @@
 //
 //  Created by Jonathan French on 3.01.26.
 //
+//We could later:
+//add “Very Hard (depth search)”
+//add “Blitz AI” (fast but risky)
+//or “Analysis mode” that shows best lines.
 
 import Foundation
+
+enum AIDifficulty: String, CaseIterable, Identifiable, Codable {
+    case easy
+    case medium
+    case hard
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .easy: return "Easy"
+        case .medium: return "Medium"
+        case .hard: return "Hard"
+        }
+    }
+}
 
 final class SimpleChessAI {
     
@@ -51,7 +71,8 @@ final class SimpleChessAI {
 
     func selectMove(
         board: Board,
-        color: PieceColor
+        color: PieceColor,
+        difficulty: AIDifficulty
     ) -> Move? {
 
         let moves = board.legalMoves(for: color, enPassantTarget: nil)
@@ -79,13 +100,31 @@ final class SimpleChessAI {
         
         let candidateMoves = safeMoves.isEmpty ? moves : safeMoves
 
-        // 🎯 Heuristic scoring
         let scored = candidateMoves.map {
             ($0, scoreMove($0, board: board, color: color))
         }
 
         let sorted = scored.sorted { $0.1 > $1.1 }
-        return sorted.prefix(3).randomElement()?.0
+
+        
+        // ======= DIFFICULTY BEHAVIOR =======
+        switch difficulty {
+
+        case .easy:
+            // Plays roughly but avoids immediate mate
+            print("🤖 AI Level: EASY")
+            return sorted.prefix(10).randomElement()?.0
+
+        case .medium:
+            // Your ORIGINAL behavior
+            print("🤖 AI Level: MEDIUM")
+            return sorted.prefix(3).randomElement()?.0
+
+        case .hard:
+            // Always pick best move
+            print("🤖 AI Level: HARD")
+            return sorted.first?.0
+        }
     }
 
     func allowsOpponentMateInOne(

@@ -12,13 +12,127 @@ import Combine
 
 enum Device { case iPhone, iPad }
 
-enum GameResult: Codable, Equatable {
+enum GameStatus: String, Codable {
+    case inProgress
+    case finished
+}
+
+enum Result: Codable {
+    case whiteWins
+    case blackWins
+    case draw
+}
+
+
+enum GameResult: Codable, Equatable, Identifiable {
     case checkmate(winner: PieceColor)
     case stalemate
     case drawByFiftyMoveRule
     case drawByThreefoldRepetition
     case timeout(winner: PieceColor)
     case resignation(winner: PieceColor)
+}
+
+extension GameResult {
+    var id: String {
+        switch self {
+        case .checkmate(let winner):
+            return "checkmate-\(winner)"
+        case .stalemate:
+            return "stalemate"
+        case .drawByFiftyMoveRule:
+            return "50-move"
+        case .drawByThreefoldRepetition:
+            return "threefold"
+        case .timeout(let winner):
+            return "timeout-\(winner)"
+        case .resignation(let winner):
+            return "resign-\(winner)"
+        }
+    }
+}
+
+
+extension GameResult {
+
+    var winner: PieceColor? {
+        switch self {
+        case .checkmate(let winner),
+             .timeout(let winner),
+             .resignation(let winner):
+            return winner
+        case .stalemate,
+             .drawByFiftyMoveRule,
+             .drawByThreefoldRepetition:
+            return nil
+        }
+    }
+
+    var isDraw: Bool {
+        winner == nil
+    }
+
+    var titleText: String {
+        switch self {
+        case .checkmate(let winner):
+            return "\(winner.displayName) wins by checkmate"
+        case .timeout(let winner):
+            return "\(winner.displayName) wins on time"
+        case .resignation(let winner):
+            return "\(winner.displayName) wins by resignation"
+        case .stalemate:
+            return "Draw by stalemate"
+        case .drawByFiftyMoveRule:
+            return "Draw by 50-move rule"
+        case .drawByThreefoldRepetition:
+            return "Draw by repetition"
+        }
+    }
+
+    var shortResult: String {
+        switch self {
+        case .checkmate(let winner),
+             .timeout(let winner),
+             .resignation(let winner):
+            return winner == .white ? "1–0" : "0–1"
+        case .stalemate,
+             .drawByFiftyMoveRule,
+             .drawByThreefoldRepetition:
+            return "½–½"
+        }
+    }
+}
+
+enum AppAccentColor: CaseIterable, Identifiable {
+    case mint
+    case blue
+    case purple
+    case teal
+    case orange
+    case crimson
+    case grey
+
+    var id: Self { self }
+
+    var color: Color {
+        switch self {
+        case .mint:
+            return Color(.mint)
+        case .blue:
+            return Color(.systemBlue)
+        case .purple:
+            return Color(.systemPurple)
+        case .teal:
+            return Color(.systemTeal)
+        case .orange:
+            return Color(.systemOrange)
+        case .crimson:
+            return Color(.systemRed)
+        case .grey:
+            return Color(.darkGray)
+
+        }
+    }
 }
 
 struct CastlingRights: Codable, Equatable, Hashable {
@@ -41,26 +155,55 @@ struct PositionKey: Codable, Hashable {
 }
 
 struct ChessClock:Codable, Equatable {
-    var whiteTime: TimeInterval
-    var blackTime: TimeInterval
+    var whiteTime: TimeInterval?
+    var blackTime: TimeInterval?
     var isRunning: Bool = false
 }
 
-enum TimeControl: String, CaseIterable, Identifiable {
-    case three = "3 min"
+//enum TimeControl: String, CaseIterable, Identifiable {
+//    case three = "3 min"
+//    case five = "5 min"
+//    case ten = "10 min"
+//    case fifteen = "15 min"
+//
+//    var id: String { rawValue }
+//
+//    var seconds: TimeInterval {
+//        switch self {
+//        case .three: return 3 * 60
+//        case .five: return 5 * 60
+//        case .ten: return 10 * 60
+//        case .fifteen: return 15 * 60
+//        }
+//    }
+//}
+
+enum TimeControl: String, CaseIterable, Identifiable, Codable {
+    case infinite = "∞"
     case five = "5 min"
     case ten = "10 min"
-    case fifteen = "15 min"
+    case twenty = "20 min"
+    case thirty = "30 min"
 
     var id: String { rawValue }
 
-    var seconds: TimeInterval {
+    var seconds: TimeInterval? {
         switch self {
-        case .three: return 3 * 60
-        case .five: return 5 * 60
-        case .ten: return 10 * 60
-        case .fifteen: return 15 * 60
+        case .infinite:
+            return nil
+        case .five:
+            return 5 * 60
+        case .ten:
+            return 10 * 60
+        case .twenty:
+            return 20 * 60
+        case .thirty:
+            return 30 * 60
         }
+    }
+
+    var isInfinite: Bool {
+        seconds == nil
     }
 }
 
@@ -70,7 +213,8 @@ final class GameManager: ObservableObject {
     @Published private(set) var board = Board.standard()
     @Published private(set) var sideToMove: PieceColor = .white
     @Published var selectedSquare: Square? = nil
-    @Published private(set) var gameResult: GameResult? = nil
+    @Published var gameResult: GameResult? = nil
+    @Published private(set) var gameStatus: GameStatus = .inProgress
     @Published var lastCapturedSquare: Square? = nil
     @Published var lastMove: Move? = nil
     @Published private(set) var castlingRights = CastlingRights()
@@ -81,18 +225,23 @@ final class GameManager: ObservableObject {
     @Published private(set) var enPassantTarget: Square? = nil
     @Published var isDemoMode: Bool = false
     @Published var highlightedSquares: Set<Square> = []
-    @Published var rotateBlackPieces: Bool = false
+    @Published var playFace2Face: Bool = false
     @Published var showCoordinates: Bool = true
     @Published var showLastMove: Bool = true
     @Published var clock = ChessClock(
-        whiteTime: 1 * 60,
-        blackTime: 1 * 60
+        whiteTime: nil,
+        blackTime: nil
     )
-    @Published var timeControl: TimeControl = .three
+    @Published var timeControl: TimeControl = .infinite
     @Published var stagedMove: Move? = nil
     @Published var paused = false
     @Published var shouldOpenBoard = false
     @Published var shouldReturnToMainMenu = false
+    @Published var aiDifficulty: AIDifficulty = .medium
+    @Published var rotateBoardForBlack = false
+    @Published var currentSaveName: String? = nil
+    @Published var currentSaveID: UUID? = nil
+    @Published var accentColor: AppAccentColor = .mint
     private var clockTimer: Timer?
 
     private var positionCounts: [PositionKey: Int] = [:]
@@ -108,6 +257,9 @@ final class GameManager: ObservableObject {
     var gameStarted = false
     var deviceType:Device = .iPhone
     var deviceMulti = 1.0
+    
+    @State private var vibe:Color = Color(.darkGray)
+    
     init() {
         deviceType = UIDevice.current.userInterfaceIdiom == .pad ? .iPad : .iPhone
         deviceMulti = UIDevice.current.userInterfaceIdiom == .pad ? 2.0 : 1.0
@@ -131,7 +283,8 @@ final class GameManager: ObservableObject {
     }
 
     func select(_ square: Square) {
-        if !gameStarted && !playAgainstAI {
+//        if !gameStarted && !playAgainstAI {
+            if !gameStarted {
             gameStarted = true
             startClock()
         }
@@ -253,12 +406,14 @@ final class GameManager: ObservableObject {
 
         applyMove(record)
         moveHistory.append(record)
+        autoSave()
     }
 
     func submitMove(_ move: Move) {
-//        makeMove(move)
         executeMove(move)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.25))
+//        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             self.handleAIMoveIfNeeded()
         }
     }
@@ -314,13 +469,25 @@ final class GameManager: ObservableObject {
                     )
                 }
             }
-
-            sideToMove = sideToMove.opponent
-            lastMove = move
+            if !playAgainstAI {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1.5))
+                    sideToMove = sideToMove.opponent
+                    lastMove = move
+                    updateBoardOrientation()
+                    checkForGameEnd()
+                }
+            } else {
+                sideToMove = sideToMove.opponent
+                lastMove = move
+                checkForGameEnd()
+            }
+//            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+//            }
 //            startClock()
         }
 
-        checkForGameEnd()
+//        checkForGameEnd()
     }
 
     func enPassantCaptureSquare(for move: Move, pawn: Piece) -> Square? {
@@ -525,11 +692,17 @@ final class GameManager: ObservableObject {
         guard playAgainstAI else { return }
         guard sideToMove == .black else { return }
         guard gameResult == nil else { return }
-        guard let move = ai.selectMove(board: board, color: sideToMove) else {
+        guard let move = ai.selectMove(
+            board: board,
+            color: sideToMove,
+            difficulty: aiDifficulty
+        ) else {
             return
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.0))
+//        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             self.submitMove(move)
         }
     }
@@ -543,25 +716,33 @@ final class GameManager: ObservableObject {
         if board.isCheckmate(for: sideToMove) {
             print("CHECKMATE detected")
             stopClock()
-            gameResult = .checkmate(winner: sideToMove.opponent)
+            //gameResult = .checkmate(winner: sideToMove.opponent)
+            endGame(.checkmate(winner: sideToMove.opponent))
         } else if board.isStalemate(for: sideToMove) {
             print("STALEMATE detected")
             stopClock()
-            gameResult = .stalemate
+            endGame(.stalemate)
         }
         else if halfMoveClock >= 100 {
             print("DRAW by 50 detected")
-            gameResult = .drawByFiftyMoveRule
+            endGame(.drawByFiftyMoveRule)
             return
         }
         else if positionCounts[currentPositionKey(), default: 0] >= 3 {
             print("DRAW by Threefold Repetition")
-            gameResult = .drawByThreefoldRepetition
+            endGame(.drawByThreefoldRepetition)
             return
         }
 
     }
     
+    func endGame(_ result: GameResult) {
+        gameResult = result
+        gameStatus = .finished
+        stopClock()
+        autoSave() // archives automatically
+    }
+
     func resetGame() {
         board = .standard()
         sideToMove = .white
@@ -577,9 +758,14 @@ final class GameManager: ObservableObject {
 
         moveHistory.removeAll()
         gameStarted = false
-        
+        isDemoMode = false
+        rotateBoardForBlack = false
+
         clock = ChessClock(whiteTime: timeControl.seconds, blackTime: timeControl.seconds)
-//        startClock()
+        updateBoardOrientation()
+        //        startClock()
+        currentSaveName = nil
+        currentSaveID = nil
         
 #if DEBUG
         //loadStalemateTestPosition()
@@ -605,6 +791,7 @@ final class GameManager: ObservableObject {
             clearStagedMove()
             stagedMove = nil
         }
+        autoSave()
     }
 
     func undoLastMove() {
@@ -783,7 +970,7 @@ final class GameManager: ObservableObject {
     
     func startClock() {
         stopClock()
-
+        guard self.clock.whiteTime != nil else { return }
         clock.isRunning = true
 
         clockTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -791,13 +978,13 @@ final class GameManager: ObservableObject {
 
             switch self.sideToMove {
             case .white:
-                self.clock.whiteTime -= 1
-                if self.clock.whiteTime <= 0 {
+                self.clock.whiteTime? -= 1
+                if self.clock.whiteTime! <= 0 {
                     self.handleTimeLoss(for: .white)
                 }
             case .black:
-                self.clock.blackTime -= 1
-                if self.clock.blackTime <= 0 {
+                self.clock.blackTime? -= 1
+                if self.clock.blackTime! <= 0 {
                     self.handleTimeLoss(for: .black)
                 }
             }
@@ -817,15 +1004,17 @@ final class GameManager: ObservableObject {
 
     func handleTimeLoss(for color: PieceColor) {
         stopClock()
-        gameResult = .timeout(winner: color.opponent)
+        endGame(.timeout(winner: color.opponent))
     }
 
     func saveCurrentGame(named name: String) {
         var games = SaveManager.loadSavedGames()
 
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+
         let save = SavedGame(
-            id: UUID(),
-            name: name,
+            id: currentSaveID ?? UUID(),
+            name: trimmedName,
             date: Date(),
             board: board,
             sideToMove: sideToMove,
@@ -833,12 +1022,26 @@ final class GameManager: ObservableObject {
             moveHistory: moveHistory,
             whiteTime: clock.whiteTime,
             blackTime: clock.blackTime,
-            playAgainstAI: playAgainstAI
+            playAgainstAI: playAgainstAI,
+            playFace2Face: playFace2Face,
+            aiDifficulty: aiDifficulty,
+            status: .inProgress,
+            isAutoSave: false
         )
-        print("Saving \(save)")
-        games.append(save)
+
+        if let id = currentSaveID,
+           let index = games.firstIndex(where: { $0.id == id }) {
+            games[index] = save       // overwrite
+        } else {
+            games.append(save)        // new save
+        }
+
+        currentSaveID = save.id
+        currentSaveName = save.name
+
         SaveManager.saveGames(games)
     }
+
 
     func loadGame(_ game: SavedGame) {
         board = game.board
@@ -848,23 +1051,109 @@ final class GameManager: ObservableObject {
         clock.whiteTime = game.whiteTime
         clock.blackTime = game.blackTime
         playAgainstAI = game.playAgainstAI
-
+        aiDifficulty = game.aiDifficulty
+        currentSaveID = game.id
+        currentSaveName = game.name
         selectedSquare = nil
         gameResult = nil
         print("Loading \(game)")
         shouldOpenBoard = true
     }
     
+//    func resumeLastGame(filter: SavedGameFilter) -> Bool {
+//        guard let save = SaveManager.loadMostRecentGame(filteredBy: filter) else {
+//            return false
+//        }
+//
+//        loadGame(save)
+//        shouldOpenBoard = true
+//        return true
+//    }
+    
     func resumeLastGame() -> Bool {
-        guard let game = SaveManager.loadMostRecentGame() else { return false }
+        guard let save = SaveManager.loadAutoResume(playAgainstAI: playAgainstAI) else {
+            return false
+        }
 
-        board = game.board
-        sideToMove = game.sideToMove
-        castlingRights = game.castlingRights
-        gameResult = nil
-
+        loadGame(save)
+        //load(from: save)
         shouldOpenBoard = true
         return true
+    }
+
+    
+//    func endGame(with result: GameResult) {
+//        guard gameResult == nil else { return } // 🔒 prevent double-end
+//
+//        gameResult = result
+//        clock.stop()
+//        archiveCurrentGame(result: result)
+//
+//        showGameResult = true
+//    }
+//
+//    func archiveCurrentGame(result: GameResult) {
+//        var games = SaveManager.loadSavedGames()
+//
+//        // Remove autosave
+//        games.removeAll { $0.isAutoSave }
+//
+//        let finishedGame = SavedGame(
+//            id: UUID(),
+//            name: currentGameName,
+//            date: Date(),
+//            board: board,
+//            sideToMove: sideToMove,
+//            castlingRights: castlingRights,
+//            moveHistory: moveHistory,
+//            whiteTime: clock.whiteTime,
+//            blackTime: clock.blackTime,
+//            playAgainstAI: playAgainstAI,
+//            aiDifficulty: aiDifficulty,
+//            status: .finished,
+//            result: result,
+//            endedAt: Date(),
+//            isAutoSave: false
+//        )
+//
+//        games.append(finishedGame)
+//        SaveManager.saveGames(games)
+//    }
+
+    
+    func autoSave() {
+        guard isDemoMode == false else { return }
+        //guard gameResult == nil else { return }
+
+        let save = SavedGame(
+            id: UUID(),
+            name: "Auto Resume",
+            date: Date(),
+            board: board,
+            sideToMove: sideToMove,
+            castlingRights: castlingRights,
+            moveHistory: moveHistory,
+            whiteTime: clock.whiteTime,
+            blackTime: clock.blackTime,
+            playAgainstAI: playAgainstAI,
+            playFace2Face: playFace2Face,
+            aiDifficulty: aiDifficulty,
+            status: gameStatus,
+            result: gameResult,
+            isAutoSave: true
+        )
+
+        SaveManager.saveAutoResume(save)
+    }
+
+    func updateBoardOrientation() {
+        guard !playFace2Face else { return }
+        guard !playAgainstAI else {
+            rotateBoardForBlack = false
+            return
+        }
+        print("Rotating board")
+        rotateBoardForBlack = (sideToMove == .black)
     }
 
 }

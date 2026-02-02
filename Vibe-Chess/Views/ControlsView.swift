@@ -12,21 +12,59 @@ struct ControlsView: View {
     
     var isTopPerspective: Bool
     var controlColor:PieceColor
-    //{
-    //        manager.rotateBlackPieces
-    //    }
     
     var body: some View {
         HStack {
-            Spacer()
-            undoButton
-            Spacer()
-            if !manager.playAgainstAI {
+            if manager.playFace2Face {
+                Spacer()
+                undoButton
+                Spacer()
                 if controlColor == .white { whiteClock } else { blackClock}
                 Spacer()
                 playButton
                 Spacer()
+
+            } else if !manager.playAgainstAI {
+                if isTopPerspective {
+                    Spacer()
+                    whiteClock
+                    Spacer()
+                    blackClock
+                    Spacer()
+                } else {
+                    Spacer()
+                    undoButton
+                    Spacer()
+                    playButton
+                    Spacer()
+
+                }
+            } else if manager.playAgainstAI {
+                Spacer()
+                whiteClock
+                Spacer()
+                undoButton
+                Spacer()
+                blackClock
+                Spacer()
+
             }
+//            Spacer()
+//            undoButton
+//            Spacer()
+//            if !manager.playAgainstAI && manager.playFace2Face {
+//                playButton
+//                Spacer()
+//            }
+//            else if manager.playFace2Face {
+//                if controlColor == .white { whiteClock } else { blackClock}
+//                Spacer()
+//                playButton
+//                Spacer()
+//            } else {
+//                whiteClock
+//                Spacer()
+//            }
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
@@ -53,7 +91,16 @@ struct ControlsView: View {
         .foregroundColor(controlColor == manager.sideToMove ? .white : .gray)
         .disabled(!manager.canUndo)
     }
-    
+
+    private var redoButton: some View {
+        Button("ReDo") {
+            manager.undoTurn()
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+        .foregroundColor(controlColor == manager.sideToMove ? .white : .gray)
+        .disabled(!manager.canUndo)
+    }
+
     private var playButton: some View {
         Button("Play") {
             manager.commitStagedMove()
@@ -71,6 +118,7 @@ struct ControlsView: View {
             guard (manager.gameResult == nil) else { return }
             manager.paused = true
             manager.clock.isRunning = false
+            manager.autoSave()
         }
     }
     
@@ -83,6 +131,7 @@ struct ControlsView: View {
             guard (manager.gameResult == nil) else { return }
             manager.paused = true
             manager.clock.isRunning = false
+            manager.autoSave()
         }
 
     }

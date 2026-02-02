@@ -16,7 +16,31 @@ struct SavedGame: Codable, Identifiable {
     let sideToMove: PieceColor
     let castlingRights: CastlingRights
     let moveHistory: [MoveRecord]
-    let whiteTime: TimeInterval
-    let blackTime: TimeInterval
+    let whiteTime: TimeInterval?
+    let blackTime: TimeInterval?
     let playAgainstAI: Bool
+    let playFace2Face: Bool
+    let aiDifficulty: AIDifficulty
+    var status: GameStatus
+    var result: GameResult?
+    var endedAt: Date?
+    var isAutoSave: Bool
+
+
+    enum GameType {
+        case human
+        case ai
+    }
+
+    var gameType: GameType {
+        playAgainstAI ? .ai : .human
+    }
+
+    var isActive: Bool {
+        status == .inProgress && !isAutoSave
+    }
+
+    var isArchived: Bool {
+        status == .finished
+    }
 }

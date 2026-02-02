@@ -12,15 +12,17 @@ struct DemoChessView: View {
     let demo: DemoItem
     
     var body: some View {
+        let boardSize = manager.squareDimension * 8
         GeometryReader { geo in
             ZStack {
                 LinearGradient(
-                    colors: [.black, .gray.opacity(0.8)],
+                    colors: [Color.black,manager.accentColor.color.opacity(0.8)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
-                
+                .statusBar(hidden: true)
+
                 VStack(spacing: 16) {
                     
                     // Title + description
@@ -37,28 +39,24 @@ struct DemoChessView: View {
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
-//                    Spacer()
+                    Spacer()
                     ZStack {
-                        // Board
-//                        ZStack {
-                            BoardView()
-                            PiecesLayer()
-                            // Coordinates
-                            if manager.showCoordinates {
-                                BoardCoordinatesView(
-                                    boardSize: manager.squareDimension * 8,
-                                    padding: 20
-                                )
-                            }
-                        }
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-//                    }
-//                    Spacer()
-// Explanation
+                        DemoBoardView()
+                        PiecesLayer()
+                    }
+                    .padding(manager.deviceType == .iPad ? 40 : 20)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .overlay {
+                        BoardCoordinatesView(
+                            squareSize: manager.squareDimension
+                        )
+                    }
+                    .frame(width:boardSize,height: boardSize)
+                    Spacer()
+                    // Explanation
                     VStack(spacing: 6) {
-                        Text(demo.description)
+                        Text(demo.instructions)
                             .font(.body)
                             .foregroundStyle(.white.opacity(0.75))
                             .multilineTextAlignment(.center)
@@ -76,17 +74,17 @@ struct DemoChessView: View {
                         .foregroundStyle(.black)
                         
                         Spacer()
-                        
                     }
                     .padding(.horizontal)
                     
                     Spacer()
                 }
-//                .padding(.top, 24)
                 .onAppear {
                     manager.squareDimension = geo.size.width * 0.90 / 8
+                    manager.playFace2Face = false
                     manager.lastMove = nil
                     demo.loadPosition(manager)
+                    manager.isDemoMode = true
                 }
             }
         }

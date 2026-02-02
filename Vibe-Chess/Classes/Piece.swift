@@ -32,6 +32,13 @@ enum PieceType: Int, Codable {
     }
 }
 
+extension PieceColor {
+    var displayName: String {
+        self == .white ? "White" : "Black"
+    }
+}
+
+
 struct Piece: Codable, Equatable, Identifiable {
     let id: UUID
     let type: PieceType

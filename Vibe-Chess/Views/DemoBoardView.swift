@@ -34,12 +34,12 @@ struct DemoBoardView: View {
                                 Rectangle()
                                     .stroke(Color(.selected), lineWidth: 4)
                             }
-                            if manager.showLastMove {
-                                if square == manager.lastMove?.from ||
-                                    square == manager.lastMove?.to {
-                                    Color.yellow.opacity(0.3)
-                                }
-                            }
+//                            if manager.showLastMove {
+//                                if square == manager.lastMove?.from ||
+//                                    square == manager.lastMove?.to {
+//                                    Color.yellow.opacity(0.3)
+//                                }
+//                            }
                             if let selected = manager.selectedSquare {
                                 let legalTargets = manager
                                     .legalMoves(from: selected)

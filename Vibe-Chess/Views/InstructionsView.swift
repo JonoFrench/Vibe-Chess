@@ -10,14 +10,16 @@ import SwiftUI
 import SwiftUI
 
 struct InstructionsView: View {
+    @EnvironmentObject var manager: GameManager
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [.black, .gray.opacity(0.8)],
+                colors: [Color.black,manager.accentColor.color.opacity(0.8)],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
+            .statusBar(hidden: true)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {

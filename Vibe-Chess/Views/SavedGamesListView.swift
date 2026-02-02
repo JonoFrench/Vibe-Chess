@@ -10,11 +10,11 @@ import SwiftUI
 import SwiftUI
 
 struct SavedGamesListView: View {
+    let filter: SavedGameFilter
     @EnvironmentObject var manager: GameManager
     @Environment(\.dismiss) var dismiss
 
     @State private var games: [SavedGame] = []
-
     var body: some View {
         NavigationStack {
             List {
@@ -46,7 +46,7 @@ struct SavedGamesListView: View {
             }
         }
         .onAppear {
-            games = SaveManager.loadSavedGames()
+            games = SaveManager.loadUserGames(filter: manager.playAgainstAI)
         }
     }
 }

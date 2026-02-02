@@ -7,45 +7,89 @@
 
 import Foundation
 
-struct SaveManager {
+//struct SaveManager {
 
-    static var savesURL: URL {
-        FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask)
-            .first!
-            .appendingPathComponent("savedGames.json")
-    }
-
+enum SaveManager {
+    private static let key = "saved_games"
+    //    }
+    
+    
     static func loadSavedGames() -> [SavedGame] {
-        guard let data = try? Data(contentsOf: savesURL) else {
+        guard
+            let data = UserDefaults.standard.data(forKey: key),
+            let games = try? JSONDecoder().decode([SavedGame].self, from: data)
+        else {
             return []
         }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
-        return (try? decoder.decode([SavedGame].self, from: data)) ?? []
-    }
-
-    static func saveGames(_ games: [SavedGame]) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        encoder.dateEncodingStrategy = .iso8601
-
-        let data = try! encoder.encode(games)
-        try! data.write(to: savesURL)
+        return games
     }
     
-    static func loadMostRecentGame() -> SavedGame? {
-        let url = FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("savedGames.json")
-
-        guard let data = try? Data(contentsOf: url) else { return nil }
-
-        let games = try? JSONDecoder().decode([SavedGame].self, from: data)
-        return games?.last        // <-- most recent one
+    static func saveGames(_ games: [SavedGame]) {
+        guard let data = try? JSONEncoder().encode(games) else { return }
+        UserDefaults.standard.set(data, forKey: key)
     }
-
+    
+    static func saveAutoResume(_ game: SavedGame) {
+        var games = loadSavedGames()
+        games.removeAll { $0.isAutoSave && $0.playAgainstAI == game.playAgainstAI }
+        games.append(game)
+        saveGames(games)
+    }
+    
+    static func loadAutoResume(playAgainstAI: Bool) -> SavedGame? {
+        loadSavedGames().first {
+            $0.isAutoSave &&
+            $0.playAgainstAI == playAgainstAI &&
+            $0.status == .inProgress
+        }
+    }
+    static func deleteAutoResume(playAgainstAI: Bool) {
+        var games = loadSavedGames()
+        games.removeAll { $0.isAutoSave && $0.playAgainstAI == playAgainstAI }
+        saveGames(games)
+    }
+    
+    static func loadUserGames(filter: Bool) -> [SavedGame] {
+        loadSavedGames()
+            .filter { !$0.isAutoSave && $0.playAgainstAI == filter }
+            .sorted { $0.date > $1.date }
+    }    
 }
+
+enum SavedGameFilter {
+    case all
+    case human
+    case ai
+}
+
+extension SaveManager {
+    
+    static func loadSavedGames(
+        filteredBy filter: SavedGameFilter
+    ) -> [SavedGame] {
+        
+        let games = loadSavedGames()
+        
+        switch filter {
+        case .all:
+            return games
+            
+        case .human:
+            return games.filter { !$0.playAgainstAI }
+            
+        case .ai:
+            return games.filter { $0.playAgainstAI }
+        }
+    }
+    
+    static func loadMostRecentGame(
+        filteredBy filter: SavedGameFilter
+    ) -> SavedGame? {
+        
+        loadSavedGames(filteredBy: filter)
+            .sorted { $0.date > $1.date }
+            .first
+    }
+}
+
 
